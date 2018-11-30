@@ -121,7 +121,9 @@ int main(int argc, char** argv)
         
         if (argc == 1)
             printf("Reading from standard input... Use '--help' for help.\n");
-        
+        /*
+        TODO:read more file and repeat solving
+        */
         gzFile in = (argc == 1) ? gzdopen(0, "rb") : gzopen(argv[1], "rb");
         if (in == NULL)
             printf("ERROR! Could not open file: %s\n", argc == 1 ? "<stdin>" : argv[1]), exit(1);
@@ -160,6 +162,7 @@ int main(int argc, char** argv)
         }
         
         vec<Lit> dummy;
+        //TODO if return unsat then return unsat else resolve;
         lbool ret = S.solveLimited(dummy);
         if (S.verbosity > 0){
             printStats(S);
