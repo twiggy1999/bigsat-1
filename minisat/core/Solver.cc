@@ -131,22 +131,22 @@ Var Solver::newVar(bool sign, bool dvar)
 
 bool Solver::addClause_(vec<Lit>& ps)
 {
-    assert(decisionLevel() == 0);//why make decicisionlevel==d?
+    assert(decisionLevel() == 0);
     if (!ok) return false;
 
     // Check if clause is satisfied and remove false/duplicate literals:
     sort(ps);
     Lit p; int i, j;
     for (i = j = 0, p = lit_Undef; i < ps.size(); i++)
-        if (value(ps[i]) == l_True || ps[i] == ~p)//~(-2)=1
-            return true;//deduce clause
+        if (value(ps[i]) == l_True || ps[i] == ~p)
+            return true;
         else if (value(ps[i]) != l_False && ps[i] != p)
-            ps[j++] = p = ps[i];//j如果没变则 value(ps[i-j]=false)
-    ps.shrink(i - j);//shorten the vector，把false的literal给del
+            ps[j++] = p = ps[i];
+    ps.shrink(i - j);
 
-    if (ps.size() == 0)//所有的literal都是false。
-        return ok = false;//
-    else if (ps.size() == 1){//BCP
+    if (ps.size() == 0)
+        return ok = false;
+    else if (ps.size() == 1){
         uncheckedEnqueue(ps[0]);
         return ok = (propagate() == CRef_Undef);
     }else{
@@ -157,6 +157,7 @@ bool Solver::addClause_(vec<Lit>& ps)
 
     return true;
 }
+
 
 void Solver::attachClause(CRef cr) {
     const Clause& c = ca[cr];
@@ -206,15 +207,12 @@ bool Solver::satisfied(const Clause& c) const {
 void Solver::cancelUntil(int level) {
     if (decisionLevel() > level){
         for (int c = trail.size()-1; c >= trail_lim[level]; c--){
-            //assign的variable->undef
             Var      x  = var(trail[c]);
             assigns [x] = l_Undef;
-            //change v的倾向性。
             if (phase_saving > 1 || (phase_saving == 1) && c > trail_lim.last())
                 polarity[x] = sign(trail[c]);
             insertVarOrder(x); }
         qhead = trail_lim[level];
-        //重置trail
         trail.shrink(trail.size() - trail_lim[level]);
         trail_lim.shrink(trail_lim.size() - level);
     } }
@@ -223,7 +221,7 @@ void Solver::cancelUntil(int level) {
 //=================================================================================================
 // Major methods:
 
-//decide lit是基于act做的，动态的选择一个assignment来去完成。
+
 Lit Solver::pickBranchLit()
 {
     Var next = var_Undef;
@@ -263,7 +261,6 @@ Lit Solver::pickBranchLit()
 |        rest of literals. There may be others from the same level though.
 |  
 |________________________________________________________________________________________________@*/
-/*TODO 做一个新的analyze()，不是用vardata而是用心的implication graph来重新实现*/
 void Solver::analyze(CRef confl, vec<Lit>& out_learnt, int& out_btlevel)
 {
     int pathC = 0;
@@ -281,7 +278,7 @@ void Solver::analyze(CRef confl, vec<Lit>& out_learnt, int& out_btlevel)
         if (c.learnt())
             claBumpActivity(c);
 
-        /*for (int j = (p == lit_Undef) ? 0 : 1; j < c.size(); j++){
+        for (int j = (p == lit_Undef) ? 0 : 1; j < c.size(); j++){
             Lit q = c[j];
 
             if (!seen[var(q)] && level(var(q)) > 0){
@@ -292,11 +289,7 @@ void Solver::analyze(CRef confl, vec<Lit>& out_learnt, int& out_btlevel)
                 else
                     out_learnt.push(q);
             }
-        }*/
-
-        /*
-        TODO: 利用implication graph 来重新更新pathC
-        */
+        }
         
         // Select next clause to look at:
         while (!seen[var(trail[index--])]);
@@ -332,9 +325,6 @@ void Solver::analyze(CRef confl, vec<Lit>& out_learnt, int& out_btlevel)
                 for (int k = 1; k < c.size(); k++)
                     if (!seen[var(c[k])] && level(var(c[k])) > 0){
                         out_learnt[j++] = out_learnt[i];
-                        /*
-                        TODO 加入哪个文件
-                        */
                         break; }
             }
         }
@@ -346,6 +336,7 @@ void Solver::analyze(CRef confl, vec<Lit>& out_learnt, int& out_btlevel)
     tot_literals += out_learnt.size();
 
     // Find correct backtrack level:
+    //
     if (out_learnt.size() == 1)
         out_btlevel = 0;
     else{
@@ -363,7 +354,6 @@ void Solver::analyze(CRef confl, vec<Lit>& out_learnt, int& out_btlevel)
 
     for (int j = 0; j < analyze_toclear.size(); j++) seen[var(analyze_toclear[j])] = 0;    // ('seen[]' is now cleared)
 }
-
 
 
 // Check if 'p' can be removed. 'abstract_levels' is used to abort early if the algorithm is
@@ -406,7 +396,6 @@ bool Solver::litRedundant(Lit p, uint32_t abstract_levels)
 |    Calculates the (possibly empty) set of assumptions that led to the assignment of 'p', and
 |    stores the result in 'out_conflict'.
 |________________________________________________________________________________________________@*/
-//和assumption有关，暂时不用管。
 void Solver::analyzeFinal(Lit p, vec<Lit>& out_conflict)
 {
     out_conflict.clear();
@@ -469,16 +458,8 @@ CRef Solver::propagate()
         Watcher        *i, *j, *end;
         num_props++;
 
-        /*
-        TODO:需要对这里进行一定的改变，所有的propagate()在限定子啊同一个文件开始进行，需要得到clause是否在当前的内存中
-        */
         for (i = j = (Watcher*)ws, end = i + ws.size();  i != end;){
             // Try to avoid inspecting the clause:
-            /*TODO if (i->cref not exist){
-                continue;
-            }
-            */
-
             Lit blocker = i->blocker;
             if (value(blocker) == l_True){
                 *j++ = *i++; continue; }
@@ -505,7 +486,7 @@ CRef Solver::propagate()
                     watches[~c[1]].push(w);
                     goto NextClause; }
 
-            // Did not find watch -- clause is unit under assignment:这里会返回conflict assigh.
+            // Did not find watch -- clause is unit under assignment:
             *j++ = w;
             if (value(first) == l_False){
                 confl = cr;
@@ -515,7 +496,6 @@ CRef Solver::propagate()
                     *j++ = *i++;
             }else
                 uncheckedEnqueue(first, cr);
-
 
         NextClause:;
         }
@@ -640,7 +620,7 @@ lbool Solver::search(int nof_conflicts)
     starts++;
 
     for (;;){
-        CRef confl = p ropagate();
+        CRef confl = propagate();
         if (confl != CRef_Undef){
             // CONFLICT
             conflicts++; conflictC++;
