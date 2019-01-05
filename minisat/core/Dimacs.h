@@ -30,6 +30,10 @@ namespace Minisat {
 
 //=================================================================================================
 // DIMACS Parser:
+static void partitionFile(char** FileName,Solver &S){
+    /*TODO:Read file and initial Solver*/
+}
+
 
 template<class B, class Solver>
 static void readClause(B& in, Solver& S, vec<Lit>& lits) {

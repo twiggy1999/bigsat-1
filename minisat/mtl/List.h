@@ -41,13 +41,14 @@ public:
 ;
     // Size operations:
     int      size     (void) const     {/*TODO: return sz;*/ }
-    void     delete   (T& data)        {/*TODO: delete certain node with data : data*/}
-    void     delete   (node* Node)     {/*TODO: delete certain node*/}
+
     void     clear    (bool dealloc = false);
 
     // Stack interface:
     void     add  (T& data)              {/*TODO: add certain node with data: data at tail/head of the list*/}
     void     add  (node* Node)           {/*TODO: add certain node at tail/head of the list*/}
+    void     delete   (T& data)        {/*TODO: delete certain node with data : data*/}
+    void     delete   (node* Node)     {/*TODO: delete certain node*/}
     
 };
 

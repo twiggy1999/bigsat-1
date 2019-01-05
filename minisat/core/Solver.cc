@@ -20,8 +20,9 @@ OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWA
 
 #include <math.h>
 
-#include "mtl/Sort.h"
-#include "core/Solver.h"
+#include "../mtl/Sort.h"
+#include "../core/Solver.h"
+#include "../mtl/Queue.h"
 
 using namespace Minisat;
 
@@ -212,7 +213,7 @@ void Solver::cancelUntil(int level) {
             if (phase_saving > 1 || (phase_saving == 1) && c > trail_lim.last())
                 polarity[x] = sign(trail[c]);
             insertVarOrder(x); }
-        qhead = trail_lim[level];
+        qhead = trail_lim[level];`
         trail.shrink(trail.size() - trail_lim[level]);
         trail_lim.shrink(trail_lim.size() - level);
     } }
@@ -302,7 +303,6 @@ void Solver::analyze(CRef confl, vec<Lit>& out_learnt, int& out_btlevel)
     out_learnt[0] = ~p;
 
     // Simplify conflict clause:
-    //
     int i, j;
     out_learnt.copyTo(analyze_toclear);
     if (ccmin_mode == 2){
@@ -425,13 +425,140 @@ void Solver::analyzeFinal(Lit p, vec<Lit>& out_conflict)
     seen[var(p)] = 0;
 }
 
+//TODO test need!
+/*_________________________________________________________________________________________________
+|
+|  newAnalyze : (confl : Clause*) (out_learnt : vec<Lit>&) (out_btlevel : int&)  ->  [void]
+|  
+|  Description:
+|    新的analyze方法 newAnalyze
+|  
+|    Pre-conditions:
+|      * 'out_learnt' is assumed to be cleared.
+|      * Current decision level must be greater than root level.
+|  
+|    Post-conditions:
+|      * 'out_learnt[0]' is the asserting literal at level 'out_btlevel'.
+|      * If out_learnt.size() > 1 then 'out_learnt[1]' has the greatest decision level of the 
+|        rest of literals. There may be others from the same level though.
+|  
+|________________________________________________________________________________________________@*/
+void Solver::newAnalyze(vec<vec<Lit>>& out_learnts, int& out_btlevel){
+    for(int i = 0; i < imG.confls.size(); i++){
+        vec<Lit> out_learnt;
+        out_learnt.push();
+        Queue<ImGnode> bfs_stack;
+        int current_level = imG.confls[i].decisionLevel();
+        Lit false_lit = imG.confls[i].getValue();
+        bfs_stack.insert(imG.confls[i]);
+        for(int j = 0; j < imG.heads[current_level].size(); j++){
+            if (imG.heads[current_level][j].getValue() == ~false_lit){
+                bfs_stack.insert(imG.heads[current_level][j]);
+                break;
+            }
+        }
+
+        assert(bfs_stack.size() == 2);
+        int pathC = 0;
+        int min = current_level;
+
+        //find 1-UIP
+        do{
+            ImGnode node = bfs_stack.peek();
+            seen[var(node.getValue())]= 0;
+            bfs_stack.pop();
+            for(int k = 0;k < node.size(); k++){
+                varBumpActivity(var(node[k].getValue()));
+                assert(node[k].decisionLevel() <= current_level);
+                if(node[k].decisionLevel() == current_level){
+                    if(!seen[var(node[k].getValue())]){
+                        bfs_stack.insert(node[k]);
+                        false_lit = node[k].getValue();
+                        pathC ++;
+                        seen[var(false_lit)] = 1;
+                    }
+
+                }else{
+                    if(min == current_level){
+                        min = node[k].decisionLevel();
+                    }else{
+                        if(min < node[k].decisionLevel()){
+                            min = decisionLevel();
+                            Lit swap_lit = node[k].getValue();
+                            out_learnt.push(out_learnt[1]);
+                            out_learnt[1] = swap_lit;
+                        }
+                    }
+                    out_learnt.push(node[k].getValue());
+                }
+            }
+            pathC--;
+
+        }while(pathC > 0);
+
+        out_learnt[0] = ~false_lit;
+        if(out_learnt.size() == 1){
+            out_btlevel = 0;
+        }else(out_btlevel == 1 || out_btlevel > min){
+            out_btlevel = min;
+        }
+
+        //TODO Simplify conflict clause:
+        /*int a,b =0;
+        out_learnt.copyTo(analyze_toclear);
+        if (ccmin_mode == 2){
+            uint32_t abstract_level = 0;
+            for (a = 1; a < out_learnt.size(); a++)
+                abstract_level |= abstractLevel(var(out_learnt[a])); // (maintain an abstraction of levels involved in conflict)
+
+            for (a = b = 1; a < out_learnt.size(); a++)
+                if (reason(var(out_learnt[i])) == CRef_Undef || !litRedundant(out_learnt[a], abstract_level))
+                    out_learnt[b++] = out_learnt[a];
+
+        }else if (ccmin_mode == 1){
+            for (a = b = 1; i < out_learnt.size(); a++){
+                Var x = var(out_learnt[a]);
+
+                if (reason(x) == CRef_Undef)
+                    out_learnt[b++] = out_learnt[a];
+                else{
+
+                    Clause& c = ca[reason(var(out_learnt[a]))];
+                    for (int k = 1; k < c.size(); k++)
+                        if (!seen[var(c[k])] && level(var(c[k])) > 0){
+                            out_learnt[b++] = out_learnt[i];
+                            break; }
+                }
+            }
+        }else
+            a = b = out_learnt.size();
+            */
+        max_literals += out_learnt.size();
+        //out_learnt.shrink(a - b);
+        tot_literals += out_learnt.size();
+        out_learnts.push(out_learnt);
+    }
+
+
+    
+}
+
+
+
 
 void Solver::uncheckedEnqueue(Lit p, CRef from)
 {
     assert(value(p) == l_Undef);
     assigns[var(p)] = lbool(!sign(p));
+    //int level = getConflictLevel(from);
     vardata[var(p)] = mkVarData(from, decisionLevel());
+    /*TODO rebuild imG*/
     trail.push_(p);
+}
+
+void Solver::newUncheckedEnqueue(Lit p, int dlevel,){
+    new ImGnode(p,dlevel);
+
 }
 
 
@@ -451,6 +578,8 @@ CRef Solver::propagate()
     CRef    confl     = CRef_Undef;
     int     num_props = 0;
     watches.cleanAll();
+
+    qhead = qhead_reset?0:qhead;
 
     while (qhead < trail.size()){
         Lit            p   = trail[qhead++];     // 'p' is enqueued fact to propagate.
@@ -627,7 +756,8 @@ lbool Solver::search(int nof_conflicts)
             if (decisionLevel() == 0) return l_False;
 
             learnt_clause.clear();
-            analyze(confl, learnt_clause, backtrack_level);
+            //analyze(confl, learnt_clause, backtrack_level);
+            newAnalyze(confl,learnt_cluase,backtrack_level);
             cancelUntil(backtrack_level);
 
             if (learnt_clause.size() == 1){
