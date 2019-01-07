@@ -228,9 +228,11 @@ protected:
     void     newUncheckedEnqueue(Lit p, int dlevel);
     bool     enqueue          (Lit p, CRef from = CRef_Undef);                         // Test if fact 'p' contradicts current state, enqueue otherwise.
     CRef     propagate        ();                                                      // Perform unit propagation. Returns possibly conflicting clause.
+    void     propagate        (vec<CRef>& confls);                                                      // bigsat method
     void     cancelUntil      (int level);                                             // Backtrack until a certain level.
     void     analyze          (CRef confl, vec<Lit>& out_learnt, int& out_btlevel);    // (bt = backtrack)
-    void     newAnalyze      (vec<vec<Lit>>& out_learnt, int& out_btlevel);
+    void     newAnalyze       (vec<vec<Lit>>& out_learnt, int& out_btlevel);
+    void     analyze          (vec<CRef>& confls, vec<vec<Lit>>& out_learnts, int& out_btlevel);
     void     analyzeFinal     (Lit p, vec<Lit>& out_conflict);                         // COULD THIS BE IMPLEMENTED BY THE ORDINARIY "analyze" BY SOME REASONABLE GENERALIZATION?
     bool     litRedundant     (Lit p, uint32_t abstract_levels);                       // (helper method for 'analyze()')
     lbool    search           (int nof_conflicts);                                     // Search for a given number of conflicts.
@@ -238,6 +240,7 @@ protected:
     void     reduceDB         ();                                                      // Reduce the set of learnt clauses.
     void     removeSatisfied  (vec<CRef>& cs);                                         // Shrink 'cs' to contain only non-satisfied clauses.
     void     rebuildOrderHeap ();
+    int      getTrailIndex    (CRef cl, int& dl);
 
     // Maintaining Variable/Clause activity:
     //

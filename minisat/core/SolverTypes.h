@@ -368,7 +368,7 @@ private:
 public:
     ImGnode(Lit value,int dlevel){
         this->value = value;
-        this->dlevel = dlevel
+        this->dlevel = dlevel;
     }
     int decisionLevel(){
         return dlevel;

@@ -204,7 +204,7 @@ bool Solver::satisfied(const Clause& c) const {
 
 
 // Revert to the state at given level (keeping all assignment at 'level' but not beyond).
-//
+
 void Solver::cancelUntil(int level) {
     if (decisionLevel() > level){
         for (int c = trail.size()-1; c >= trail_lim[level]; c--){
@@ -425,23 +425,13 @@ void Solver::analyzeFinal(Lit p, vec<Lit>& out_conflict)
     seen[var(p)] = 0;
 }
 
-//TODO test need!
+//TODO simplify clause undone
+//TODO test needed
 /*_________________________________________________________________________________________________
 |
 |  newAnalyze : (confl : Clause*) (out_learnt : vec<Lit>&) (out_btlevel : int&)  ->  [void]
 |  
-|  Description:
-|    新的analyze方法 newAnalyze
-|  
-|    Pre-conditions:
-|      * 'out_learnt' is assumed to be cleared.
-|      * Current decision level must be greater than root level.
-|  
-|    Post-conditions:
-|      * 'out_learnt[0]' is the asserting literal at level 'out_btlevel'.
-|      * If out_learnt.size() > 1 then 'out_learnt[1]' has the greatest decision level of the 
-|        rest of literals. There may be others from the same level though.
-|  
+|  该方法消耗的存储空间似乎并非是最优的。
 |________________________________________________________________________________________________@*/
 void Solver::newAnalyze(vec<vec<Lit>>& out_learnts, int& out_btlevel){
     for(int i = 0; i < imG.confls.size(); i++){
@@ -543,8 +533,157 @@ void Solver::newAnalyze(vec<vec<Lit>>& out_learnts, int& out_btlevel){
     
 }
 
+/*_________________________________________________________________________________________________
+|
+|  analyze : (confl : Clause*) (out_learnt : vec<Lit>&) (out_btlevel : int&)  ->  [void]
+|  该方法重载了原来的analyze : 仅在第一次load的时候才会把所有的confl clause全部都看一遍，再根据：
+|  公式Grasp公式的3.18进行计算最小值。
+|
+|________________________________________________________________________________________________@*/
+
+// TODO test needed!
+void Solver::analyze(vec<CRef> confls, vec<vec<Lit>>& out_learnts, int& out_btlevel)
+{
+    int pathC = 0;
+    Lit p     = lit_Undef;
+
+    out_btlevel = -1;
+    // Generate conflict clause:
+    //
+
+    //int index   = trail.size() - 1;
+    assert(confls.size() != 0);
+    int max_index = -1;
+    for(int i = 0; i < confls.size();i++){
+        out_learnts[i].push();      // (leave room for the asserting literal)
+
+        // 找到confl clause中decision level最大的lit在Trail的位置，并向前扫描。
+        int dl = -1;
+        int index = getTrailIndex(confls[i],dl);
+
+        assert(index != -1);     // 否则没找到当且confl clause中
+        do {
+            assert(confls[i] != CRef_Undef);// (otherwise should be UIP)
+            Clause &c = ca[confls[i]];
+
+            if (c.learnt())
+                claBumpActivity(c);
+
+            for (int j = (p == lit_Undef) ? 0 : 1; j < c.size(); j++) {
+                Lit q = c[j];
+
+                if (!seen[var(q)] && level(var(q)) > 0) {
+                    varBumpActivity(var(q));
+                    assert(level(var(q)) <= dl); //
+                    seen[var(q)] = 1;
+                    if (level(var(q)) == dl) //origin >=，但应该是仅有assert(==)
+                        pathC++;
+                    else
+                        out_learnts[i].push(q);
+                }
+            }
+
+            // Select next clause to look at:
+            // 这里利用trail去做BFS
+            while (!seen[var(trail[index--])]);
+            p = trail[index + 1];
+            confls[i]=reason(var(p));
+            seen[var(p)] = 0;
+            pathC--;
+
+        } while (pathC > 0);
+        out_learnts[i][0] = ~p;
+
+        // Simplify conflict clause:
+        int a, b;
+        out_learnts[i].copyTo(analyze_toclear);
+        if (ccmin_mode == 2) {
+            uint32_t abstract_level = 0;
+            for (i = 1; i < out_learnts[i].size(); i++)
+                abstract_level |= abstractLevel(
+                        var(out_learnts[a][i])); // (maintain an abstraction of levels involved in conflict)
+
+            for (a = b = 1; i < out_learnts[i].size(); i++)
+                if (reason(var(out_learnts[i][a])) == CRef_Undef || !litRedundant(out_learnts[i][a], abstract_level))
+                    out_learnts[i][b++] = out_learnts[i][a];
+
+        } else if (ccmin_mode == 1) {
+            for (a = b = 1; i < out_learnts[i].size(); i++) {
+                Var x = var(out_learnts[i][a]);
+
+                if (reason(x) == CRef_Undef)
+                    out_learnts[i][b++] = out_learnts[i][a];
+                else {
+                    Clause &c = ca[reason(var(out_learnts[i][a]))];
+                    for (int k = 1; k < c.size(); k++)
+                        if (!seen[var(c[k])] && level(var(c[k])) > 0) {
+                            out_learnts[i][j++] = out_learnts[i][a];
+                            break;
+                        }
+                }
+            }
+        } else
+            a = b = out_learnts[i].size();
+
+        max_literals += out_learnts[i].size();
+        out_learnts[i].shrink(a - b);
+        tot_literals += out_learnts[i].size();
+
+        // Find correct backtrack level:
 
 
+        if (out_learnts[i].size() == 1)
+            out_btlevel = 0;
+        else {
+            int max_i = 1;
+            // Find the first literal assigned at the next-highest level:
+            for (int a = 2; a < out_learnts[i].size(); a++)
+                if (level(var(out_learnts[i][a])) > level(var(out_learnts[i][max_i])))
+                    max_i = a;
+            // Swap-in this literal at index 1:
+            Lit p = out_learnts[i][max_i];
+            out_learnts[i][max_i] = out_learnts[i][1];
+            out_learnts[i][1] = p;
+            if(out_btlevel > level(var(p)) || out_btlevel == -1){
+                max_index = i;
+                out_btlevel = level(var(p));
+                max_index = i;
+            }
+        }
+        //确保是最小的进行backtrack
+        if (out_btlevel!=0){
+            vec<Lit> temp;
+            temp.copyTo(out_learnts[max_index]);
+            out_learnts[max_index].clear();
+            out_learnts[max_index].copyTo(out_learnts[0]);
+            out_learnts[0].clear();
+            out_learnts[0].copyTo(temp);
+            free(temp);
+        }
+
+    }
+
+    for (int j = 0; j < analyze_toclear.size(); j++) seen[var(analyze_toclear[j])] = 0;    // ('seen[]' is now cleared)
+}
+
+//get cr's max lit's trail index
+int Solver::getTrailIndex(CRef cr,int& dl){
+    Lit max_lit;
+    Clause& cl = ca[cr];
+    for(int i = 0; i < cl.size(); i++){
+        if (dl < level(var(cl[i]))){
+            dl = level(var(cl[i]);
+            max_lit = cl[i];
+        }
+    }
+    for(int i = trail_lim[dl - 1]; i<trail_lim[dl]; i++){
+        if(trail[i] == max_lit){
+            return i;
+        }
+    }
+    return -1;
+
+}
 
 void Solver::uncheckedEnqueue(Lit p, CRef from)
 {
@@ -554,11 +693,6 @@ void Solver::uncheckedEnqueue(Lit p, CRef from)
     vardata[var(p)] = mkVarData(from, decisionLevel());
     /*TODO rebuild imG*/
     trail.push_(p);
-}
-
-void Solver::newUncheckedEnqueue(Lit p, int dlevel,){
-    new ImGnode(p,dlevel);
-
 }
 
 
@@ -636,6 +770,75 @@ CRef Solver::propagate()
     return confl;
 }
 
+
+// TODO Test needed
+// 尽在第一次的时候才需要reset qhead?
+void Solver:: propagate(vec<CRef>& confls)
+{
+    watches.cleanAll();
+    int num_props = 0;
+
+    qhead = qhead_reset?0:qhead;
+
+    while (qhead < trail.size()){
+        Lit            p   = trail[qhead++];     // 'p' is enqueued fact to propagate.
+        vec<Watcher>&  ws  = watches[p];
+        Watcher        *i, *j, *end;
+        num_props++;
+
+        for (i = j = (Watcher*)ws, end = i + ws.size();  i != end;){
+            // Try to avoid inspecting the clause:
+            Lit blocker = i->blocker;
+            if (value(blocker) == l_True){
+                *j++ = *i++; continue; }
+            // 这里WL结构没有进行更新
+            // Make sure the false literal is data[1]:
+            // blocker的信息尚未更新
+            CRef     cr        = i->cref;
+            Clause&  c         = ca[cr];
+            Lit      false_lit = ~p;
+            if (c[0] == false_lit)
+                c[0] = c[1], c[1] = false_lit;
+            assert(c[1] == false_lit);
+            i++;//由于此时i已经是false lit,它
+
+            // If 0th watch is true, then clause is already satisfied.
+            Lit     first = c[0];
+            Watcher w     = Watcher(cr, first);
+            if (first != blocker && value(first) == l_True){
+                *j++ = w; continue; }
+
+            // Look for new watch:
+            for (int k = 2; k < c.size(); k++)
+                if (value(c[k]) != l_False){
+
+                    c[1] = c[k]; c[k] = false_lit;
+                    watches[~c[1]].push(w);
+                    goto NextClause; }
+            // 注意watches[~c[0]]还没有更新
+            // Did not find watch -- clause is unit under assignment:
+            *j++ = w;
+            if (value(first) == l_False){
+                //conflict_find;
+                if(!qhead_reset) {
+                    // 经历了第一次的load则退回到普通的算法。
+                    qhead = trail.size();
+                }
+                // find more conflicts?
+                // Copy the remaining watches:
+                while (i < end)
+                    *j++ = *i++;
+            }else
+                uncheckedEnqueue(first, cr);
+
+            NextClause:;
+        }
+        ws.shrink(i - j);
+    }
+    propagations += num_props;
+    simpDB_props -= num_props;
+    qhead_reset = false;
+}
 
 /*_________________________________________________________________________________________________
 |
@@ -730,11 +933,11 @@ bool Solver::simplify()
 /*_________________________________________________________________________________________________
 |
 |  search : (nof_conflicts : int) (params : const SearchParams&)  ->  [lbool]
-|  
+|
 |  Description:
-|    Search for a model the specified number of conflicts. 
+|    Search for a model the specified number of conflicts.
 |    NOTE! Use negative value for 'nof_conflicts' indicate infinity.
-|  
+|
 |  Output:
 |    'l_True' if a partial assigment that is consistent with respect to the clauseset is found. If
 |    all variables are decision variables, this means that the clause set is satisfiable. 'l_False'
@@ -756,8 +959,8 @@ lbool Solver::search(int nof_conflicts)
             if (decisionLevel() == 0) return l_False;
 
             learnt_clause.clear();
-            //analyze(confl, learnt_clause, backtrack_level);
-            newAnalyze(confl,learnt_cluase,backtrack_level);
+            analyze(confl, learnt_clause, backtrack_level);
+            //newAnalyze(confl,learnt_cluase,backtrack_level);
             cancelUntil(backtrack_level);
 
             if (learnt_clause.size() == 1){
@@ -779,9 +982,9 @@ lbool Solver::search(int nof_conflicts)
                 max_learnts             *= learntsize_inc;
 
                 if (verbosity >= 1)
-                    printf("| %9d | %7d %8d %8d | %8d %8d %6.0f | %6.3f %% |\n", 
-                           (int)conflicts, 
-                           (int)dec_vars - (trail_lim.size() == 0 ? trail.size() : trail_lim[0]), nClauses(), (int)clauses_literals, 
+                    printf("| %9d | %7d %8d %8d | %8d %8d %6.0f | %6.3f %% |\n",
+                           (int)conflicts,
+                           (int)dec_vars - (trail_lim.size() == 0 ? trail.size() : trail_lim[0]), nClauses(), (int)clauses_literals,
                            (int)max_learnts, nLearnts(), (double)learnts_literals/nLearnts(), progressEstimate()*100);
             }
 
@@ -834,7 +1037,137 @@ lbool Solver::search(int nof_conflicts)
     }
 }
 
+/*_________________________________________________________________________________________________
+|
+|  search : (nof_conflicts : int) (params : const SearchParams&)  ->  [lbool]
+|
+|  Description:
+|    Search for a model the specified number of conflicts.
+|    NOTE! Use negative value for 'nof_conflicts' indicate infinity.
+|
+|  Output:
+|    'l_True' if a partial assigment that is consistent with respect to the clauseset is found. If
+|    all variables are decision variables, this means that the clause set is satisfiable. 'l_False'
+|    if the clause set is unsatisfiable. 'l_Undef' if the bound on number of conflicts is reached.
+|________________________________________________________________________________________________@*/
+lbool Solver::newSearch(int nof_conflicts)
+{
+    assert(ok);
+    int         backtrack_level;
+    int         conflictC = 0;
+    //vec<Lit>    learnt_clause;
+    vec<vec<Lit>> learnt_clauses;
+    starts++;
 
+
+    for (;;){
+        vec<CRef> confls;
+        propagate(confls);
+
+        if (confls[0] != CRef_Undef){
+            // CONFLICT
+            conflicts++; conflictC++;
+            if (decisionLevel() == 0) return l_False;
+
+            learnt_clauses.clear();
+            learnt_clauses.push();
+            if(confls.size() == 1){
+                analyze(confls[0],learnt_clauses[0],backtrack_level);
+            }else{
+                analyze(confls,learnt_clauses,backtrack_level);
+            };
+            //analyze(confl, learnt_clause, backtrack_level);
+
+            cancelUntil(backtrack_level);
+            //bool
+            for(int i = 0; i < learnt_clauses.size(); i++){
+                if(learnt_clauses[i].size() == 1){
+                    uncheckedEnqueue(learnt_clauses[i][0]);
+                }else{
+                    CRef cr = ca.alloc(learnt_clauses[i], true);
+                    learnts.push(cr);
+                    attachClause(cr);
+                    claBumpActivity(ca[cr]);
+                    if(i == 0){
+                        uncheckedEnqueue(learnt_clauses[0][0],cr);
+                    }
+                }
+            }
+
+            /*
+            if (learnt_clauses.size() == 1){
+                uncheckedEnqueue(learnt_clauses[0]);
+            }else{
+                CRef cr = ca.alloc(learnt_clause, true);
+                learnts.push(cr);
+                attachClause(cr);
+                claBumpActivity(ca[cr]);
+                uncheckedEnqueue(learnt_clause[0], cr);
+            }
+            */
+            varDecayActivity();
+            claDecayActivity();
+
+            if (--learntsize_adjust_cnt == 0){
+                learntsize_adjust_confl *= learntsize_adjust_inc;
+                learntsize_adjust_cnt    = (int)learntsize_adjust_confl;
+                max_learnts             *= learntsize_inc;
+
+                if (verbosity >= 1)
+                    printf("| %9d | %7d %8d %8d | %8d %8d %6.0f | %6.3f %% |\n",
+                           (int)conflicts,
+                           (int)dec_vars - (trail_lim.size() == 0 ? trail.size() : trail_lim[0]), nClauses(), (int)clauses_literals,
+                           (int)max_learnts, nLearnts(), (double)learnts_literals/nLearnts(), progressEstimate()*100);
+            }
+
+        }else{
+            // NO CONFLICT
+            if (nof_conflicts >= 0 && conflictC >= nof_conflicts || !withinBudget()){
+                // Reached bound on number of conflicts:
+                progress_estimate = progressEstimate();
+                cancelUntil(0);
+                return l_Undef; }
+
+            // Simplify the set of problem clauses:
+            if (decisionLevel() == 0 && !simplify())
+                return l_False;
+
+            if (learnts.size()-nAssigns() >= max_learnts)
+                // Reduce the set of learnt clauses:
+                reduceDB();
+
+            Lit next = lit_Undef;
+            while (decisionLevel() < assumptions.size()){
+                // Perform user provided assumption:
+                Lit p = assumptions[decisionLevel()];
+                if (value(p) == l_True){
+                    // Dummy decision level:
+                    newDecisionLevel();
+                }else if (value(p) == l_False){
+                    analyzeFinal(~p, conflict);
+                    return l_False;
+                }else{
+                    next = p;
+                    break;
+                }
+            }
+
+            if (next == lit_Undef){
+                // New variable decision:
+                decisions++;
+                next = pickBranchLit();
+
+                if (next == lit_Undef)
+                    // Model found:
+                    return l_True;
+            }
+
+            // Increase decision level and enqueue 'next'
+            newDecisionLevel();
+            uncheckedEnqueue(next);
+        }
+    }
+}
 double Solver::progressEstimate() const
 {
     double  progress = 0;
