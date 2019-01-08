@@ -26,6 +26,7 @@ OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWA
 #include "../mtl/Alg.h"
 #include "../utils/Options.h"
 #include "../core/SolverTypes.h"
+#include <zlib.h>
 
 
 namespace Minisat {
@@ -40,6 +41,8 @@ public:
     //
     Solver();
     virtual ~Solver();
+
+    void partition(gzFile in);                                  // partition File to pieces
 
     // Problem specification:
     //
@@ -195,7 +198,7 @@ protected:
     Heap<VarOrderLt>    order_heap;       // A priority queue of variables ordered with respect to the variable activity.
     double              progress_estimate;// Set by 'search()'.
     bool                remove_satisfied; // Indicates whether possibly inefficient linear scan for satisfied clauses should be performed in 'simplify'.
-
+    const char*         dirName;          // Dir name which stores partitioned Files
     ClauseAllocator     ca;
     vec<Lit>            analyze_stack;
     // Temporaries (to reduce allocation overhead). Each variable is prefixed by the method in which it is
@@ -217,6 +220,7 @@ protected:
 
     //Files
     bool                qhead_reset = false;
+    int                 sat_files = 0;
 
 
     // Main internal methods:
@@ -237,6 +241,7 @@ protected:
     bool     litRedundant     (Lit p, uint32_t abstract_levels);                       // (helper method for 'analyze()')
     lbool    search           (int nof_conflicts);                                     // Search for a given number of conflicts.
     lbool    solve_           ();                                                      // Main solve method (assumptions given in 'assumptions').
+    lbool    newSolve_        ();
     void     reduceDB         ();                                                      // Reduce the set of learnt clauses.
     void     removeSatisfied  (vec<CRef>& cs);                                         // Shrink 'cs' to contain only non-satisfied clauses.
     void     rebuildOrderHeap ();

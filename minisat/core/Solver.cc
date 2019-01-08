@@ -23,11 +23,15 @@ OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWA
 #include "../mtl/Sort.h"
 #include "../core/Solver.h"
 #include "../mtl/Queue.h"
+#include <sys/types.h>
+#include <dirent.h>
+#include "../core/Dimacs.h"
 
 using namespace Minisat;
 
 //=================================================================================================
 // Options:
+
 
 
 static const char* _cat = "CORE";
@@ -826,8 +830,10 @@ void Solver:: propagate(vec<CRef>& confls)
                 }
                 // find more conflicts?
                 // Copy the remaining watches:
-                while (i < end)
-                    *j++ = *i++;
+                // 处理有两种！从前向后扫描，证明之前的不会有更后面的，但是就会失去了一些之后发现的，所以是否要继续？
+                /*while (i < end)
+                    *j++ = *i++;*/
+                sat_files = 0;
             }else
                 uncheckedEnqueue(first, cr);
 
@@ -1213,6 +1219,7 @@ static double luby(double y, int x){
 // NOTE: assumptions passed in member-variable 'assumptions'.
 lbool Solver::solve_()
 {
+
     model.clear();
     conflict.clear();
     if (!ok) return l_False;
@@ -1252,6 +1259,77 @@ lbool Solver::solve_()
         ok = false;
 
     cancelUntil(0);
+    return status;
+}
+
+// TODO test needed
+lbool Solver::newSolve_()
+{
+    // get partition files
+    //int no_sat_files = 0;
+    vec <char *> files;
+    DIR* dirp = opendir(dirName);
+    struct dirent *dp;
+    while((dp=readdir(dirp)) != NULL){
+        files.push(dp-> d_name);
+    }
+    closedir(dirp);
+
+    model.clear();
+    conflict.clear();
+    if (!ok) return l_False;
+
+    solves++;
+
+    max_learnts               = nClauses() * learntsize_factor;
+    learntsize_adjust_confl   = learntsize_adjust_start_confl;
+    learntsize_adjust_cnt     = (int)learntsize_adjust_confl;
+    lbool   status            = l_Undef;
+
+    if (verbosity >= 1){
+        printf("============================[ Search Statistics ]==============================\n");
+        printf("| Conflicts |          ORIGINAL         |          LEARNT          | Progress |\n");
+        printf("|           |    Vars  Clauses Literals |    Limit  Clauses Lit/Cl |          |\n");
+        printf("===============================================================================\n");
+    }
+
+    // Search:
+    int curr_restarts = 0;
+    int next = 0;
+    while (sat_files != files.size()){
+        next = next % files.size();
+        gzFile in  = gzopen(files[next],"rb");
+        parse_DIMACS(in, *this);
+        {
+            /*
+             保留Vardata 的 clause-> 更新watches吧不需要的clause给删除
+            */
+        }
+
+        while (status == l_Undef){
+            double rest_base = luby_restart ? luby(restart_inc, curr_restarts) : pow(restart_inc, curr_restarts);
+            status = search(rest_base * restart_first);
+            if (!withinBudget()) break;
+            curr_restarts++;
+        }
+
+        if (verbosity >= 1)
+            printf("===============================================================================\n");
+
+        if (status == l_True){
+            // Extend & copy model:
+            model.growTo(nVars());
+            next++;
+            continue;
+            //for (int i = 0; i < nVars(); i++) model[i] = value(i);
+        }else if (status == l_False && conflict.size() == 0)
+            ok = false;
+            break;
+    }
+
+
+
+    //cancelUntil(0);
     return status;
 }
 

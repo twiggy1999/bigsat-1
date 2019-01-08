@@ -38,7 +38,7 @@ void printStats(Solver& solver)
 {
     double cpu_time = cpuTime();
     double mem_used = memUsedPeak();
-    printf("restarts              : %"PRIu64"\n", solver.starts);
+    printf("restarts              : %-12"PRIu64"\n", solver.starts);
     printf("conflicts             : %-12"PRIu64"   (%.0f /sec)\n", solver.conflicts   , solver.conflicts   /cpu_time);
     printf("decisions             : %-12"PRIu64"   (%4.2f %% random) (%.0f /sec)\n", solver.decisions, (float)solver.rnd_decisions*100 / (float)solver.decisions, solver.decisions   /cpu_time);
     printf("propagations          : %-12"PRIu64"   (%.0f /sec)\n", solver.propagations, solver.propagations/cpu_time);
@@ -130,8 +130,11 @@ int main(int argc, char** argv)
             printf("============================[ Problem Statistics ]=============================\n");
             printf("|                                                                             |\n"); }
         
-        parse_DIMACS(in, S);
+        //parse_DIMACS(in, S);
+        S.partition(in);
         gzclose(in);
+
+
         FILE* res = (argc >= 3) ? fopen(argv[2], "wb") : NULL;
         
         if (S.verbosity > 0){
@@ -161,6 +164,10 @@ int main(int argc, char** argv)
         
         vec<Lit> dummy;
         lbool ret = S.solveLimited(dummy);
+        for(;false;){
+            //read file in dir and solve;
+        }
+
         if (S.verbosity > 0){
             printStats(S);
             printf("\n"); }
