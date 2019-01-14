@@ -690,26 +690,40 @@ int Solver::getTrailIndex(CRef cr,int& dl){
 
 }
 
+int Solver:: getDecisionLevel(Lit p,CRef from){
+    if(from == CRef_Undef){
+        return decisionLevel();
+    }
+    int max = -1;
+    for(int i = 0; i < ca[from].size(); i++){
+        if(p != ca[from][i] && level(var(ca[from][i])) > max){
+            max = level(var(ca[from][i]));
+        }
+    }
+    return max;
+}
+
 void Solver::uncheckedEnqueue(Lit p, CRef from)
 {
     assert(value(p) == l_Undef);
     assigns[var(p)] = lbool(!sign(p));
     //int level = getConflictLevel(from);
+
     if(vardata[var(p)].reason != CRef_Undef){
         ca[vardata[var(p)].reason].resetCache();
     }
-    vardata[var(p)] = mkVarData(from, decisionLevel());
+    //vardata[var(p)] = mkVarData(from, decisionLevel());
+    vardata[var(p)] = mkVarData(from, getDecisionLevel(p,from));
 
     ca[from].keepinCache();
     /*TODO rebuild imG*/
     trail.push_(p);
 }
 
-Solver:: getDecisionLevel(Lit p,CRef from){
-}
 
 
-int Solver::getConflictLevel(CRef from){
+
+/*int Solver::getConflictLevel(CRef from){
     int max = -1;
     for(int i = 0; i<ca[from].size(); i++){
         int level = vardata[var(ca[from][i])].level;
@@ -718,7 +732,7 @@ int Solver::getConflictLevel(CRef from){
         }
     }
     return max;
-}
+}*/
 
 /*_________________________________________________________________________________________________
 |
@@ -1334,12 +1348,22 @@ lbool Solver::newSolve_()
                         continue;
                     }
                     *k++ = *j++;
-
                 }
                 watches[temp].shrink(j-k);
+
+                for (j = k = (Watcher*) watches[~temp], end = j + watches[~temp].size();j != end;){
+                    if(ca[j->cref].is_reset()){
+                        j++;
+                        continue;
+                    }
+                    *k++ = *j++;
+                }
+                watches[~temp].shrink(j-k);
+
             }
         }
         parse_DIMACS(in, *this);
+
 
 
         while (status == l_Undef){

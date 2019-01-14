@@ -198,7 +198,7 @@ protected:
     Heap<VarOrderLt>    order_heap;       // A priority queue of variables ordered with respect to the variable activity.
     double              progress_estimate;// Set by 'search()'.
     bool                remove_satisfied; // Indicates whether possibly inefficient linear scan for satisfied clauses should be performed in 'simplify'.
-    const char*         dirName;          // Dir name which stores partitioned Files
+    const char*         dirName = "../data";          // Dir name which stores partitioned Files
     ClauseAllocator     ca;
     vec<Lit>            analyze_stack;
     // Temporaries (to reduce allocation overhead). Each variable is prefixed by the method in which it is
@@ -268,7 +268,7 @@ protected:
 
     // Misc:
     //
-    int      getConflictLevel (CRef from);
+    int      getDecisionLevel (Lit p,CRef from);
     int      decisionLevel    ()      const; // Gives the current decisionlevel.
     uint32_t abstractLevel    (Var x) const; // Used to represent an abstraction of sets of decision levels.
     CRef     reason           (Var x) const;
@@ -375,7 +375,7 @@ inline bool     Solver::solve         (Lit p)               { budgetOff(); assum
 inline bool     Solver::solve         (Lit p, Lit q)        { budgetOff(); assumptions.clear(); assumptions.push(p); assumptions.push(q); return solve_() == l_True; }
 inline bool     Solver::solve         (Lit p, Lit q, Lit r) { budgetOff(); assumptions.clear(); assumptions.push(p); assumptions.push(q); assumptions.push(r); return solve_() == l_True; }
 inline bool     Solver::solve         (const vec<Lit>& assumps){ budgetOff(); assumps.copyTo(assumptions); return solve_() == l_True; }
-inline lbool    Solver::solveLimited  (const vec<Lit>& assumps){ assumps.copyTo(assumptions); return solve_(); }
+inline lbool    Solver::solveLimited  (const vec<Lit>& assumps){ assumps.copyTo(assumptions); /*return solve_();*/ return newSolve_(); }
 inline bool     Solver::okay          ()      const   { return ok; }
 
 inline void     Solver::toDimacs     (const char* file){ vec<Lit> as; toDimacs(file, as); }

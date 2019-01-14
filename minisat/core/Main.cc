@@ -122,9 +122,9 @@ int main(int argc, char** argv)
         if (argc == 1)
             printf("Reading from standard input... Use '--help' for help.\n");
 
-        gzFile in = (argc == 1) ? gzdopen(0, "rb") : gzopen(argv[1], "rb");
-        if (in == NULL)
-            printf("ERROR! Could not open file: %s\n", argc == 1 ? "<stdin>" : argv[1]), exit(1);
+        //gzFile in = (argc == 1) ? gzdopen(0, "rb") : gzopen(argv[1], "rb");
+        //if (in == NULL)
+        //printf("ERROR! Could not open file: %s\n", argc == 1 ? "<stdin>" : argv[1]), exit(1);
 
         if (S.verbosity > 0){
             printf("============================[ Problem Statistics ]=============================\n");
@@ -132,7 +132,7 @@ int main(int argc, char** argv)
 
         //parse_DIMACS(in, S);
 
-        //TODO partion file:
+        //TODO partion file: should simplfy clauses at the sametime
 
         //S.partition(in);
         //gzclose(in);
@@ -153,7 +153,7 @@ int main(int argc, char** argv)
         signal(SIGINT, SIGINT_interrupt);
         signal(SIGXCPU,SIGINT_interrupt);
 
-        if (!S.simplify()){
+        /*if (!S.simplify()){
             if (res != NULL) fprintf(res, "UNSAT\n"), fclose(res);
             if (S.verbosity > 0){
                 printf("===============================================================================\n");
@@ -162,7 +162,7 @@ int main(int argc, char** argv)
                 printf("\n"); }
             printf("UNSATISFIABLE\n");
             exit(20);
-        }
+        }*/
 
         vec<Lit> dummy;
         lbool ret = S.solveLimited(dummy);
