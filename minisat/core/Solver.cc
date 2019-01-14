@@ -217,10 +217,11 @@ void Solver::cancelUntil(int level) {
             if (phase_saving > 1 || (phase_saving == 1) && c > trail_lim.last())
                 polarity[x] = sign(trail[c]);
             insertVarOrder(x); }
-        qhead = trail_lim[level];`
+        qhead = trail_lim[level];
         trail.shrink(trail.size() - trail_lim[level]);
         trail_lim.shrink(trail_lim.size() - level);
-    } }
+    }
+}
 
 
 //=================================================================================================
@@ -493,7 +494,7 @@ void Solver::newAnalyze(vec<vec<Lit>>& out_learnts, int& out_btlevel){
         out_learnt[0] = ~false_lit;
         if(out_learnt.size() == 1){
             out_btlevel = 0;
-        }else(out_btlevel == 1 || out_btlevel > min){
+        }else if(out_btlevel == 1 || out_btlevel > min){
             out_btlevel = min;
         }
 
@@ -546,8 +547,8 @@ void Solver::newAnalyze(vec<vec<Lit>>& out_learnts, int& out_btlevel){
 |________________________________________________________________________________________________@*/
 
 // TODO test needed!
-void Solver::analyze(vec<CRef> confls, vec<vec<Lit>>& out_learnts, int& out_btlevel)
-{
+void Solver::analyze(Minisat::vec<Minisat::CRef> &confls, Minisat::vec<Minisat::vec<Minisat::Lit>> &out_learnts,
+                     int &out_btlevel) {
     int pathC = 0;
     Lit p     = lit_Undef;
 
@@ -694,11 +695,19 @@ void Solver::uncheckedEnqueue(Lit p, CRef from)
     assert(value(p) == l_Undef);
     assigns[var(p)] = lbool(!sign(p));
     //int level = getConflictLevel(from);
+    if(vardata[var(p)].reason != CRef_Undef){
+        ca[vardata[var(p)].reason].resetCache();
+    }
     vardata[var(p)] = mkVarData(from, decisionLevel());
+    ca[from].keepinCache();
     /*TODO rebuild imG*/
     trail.push_(p);
 }
 
+
+int getConflictLevel(Cref from){
+    Cref
+}
 
 /*_________________________________________________________________________________________________
 |
@@ -1297,14 +1306,30 @@ lbool Solver::newSolve_()
     int curr_restarts = 0;
     int next = 0;
     while (sat_files != files.size()){
+        if (qhead_reset){
+            for(int i =0;i < nVars() ; i++){
+                Clause cr = ca[vardata[i].reason];
+            }
+        }
         next = next % files.size();
         gzFile in  = gzopen(files[next],"rb");
-        parse_DIMACS(in, *this);
         {
-            /*
-             保留Vardata 的 clause-> 更新watches吧不需要的clause给删除
-            */
+            for(int i = 0; i<nVars(); i++){
+                Lit temp = mkLit(i);
+                Watcher *j,*k,*end;
+                for (j = k = (Watcher*) watches[temp], end = j + watches[temp].size();j != end;){
+                    if(ca[j->cref].is_reset()){
+                        j++;
+                        continue;
+                    }
+                    *k++ = *j++;
+
+                }
+                watches[temp].shrink(j-k);
+            }
         }
+        parse_DIMACS(in, *this);
+
 
         while (status == l_Undef){
             double rest_base = luby_restart ? luby(restart_inc, curr_restarts) : pow(restart_inc, curr_restarts);
