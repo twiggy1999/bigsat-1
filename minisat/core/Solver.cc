@@ -21,11 +21,11 @@ OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWA
 #include <math.h>
 
 #include "../mtl/Sort.h"
-#include "../core/Solver.h"
+#include "Solver.h"
 #include "../mtl/Queue.h"
 #include <sys/types.h>
 #include <dirent.h>
-#include "../core/Dimacs.h"
+#include "Dimacs.h"
 
 using namespace Minisat;
 
@@ -176,7 +176,7 @@ void Solver::attachClause(CRef cr) {
 void Solver::detachClause(CRef cr, bool strict) {
     const Clause& c = ca[cr];
     assert(c.size() > 1);
-    
+
     if (strict){
         remove(watches[~c[0]], Watcher(cr, c[1]));
         remove(watches[~c[1]], Watcher(cr, c[0]));
@@ -195,7 +195,7 @@ void Solver::removeClause(CRef cr) {
     detachClause(cr);
     // Don't leave pointers to free'd memory!
     if (locked(c)) vardata[var(c[0])].reason = CRef_Undef;
-    c.mark(1); 
+    c.mark(1);
     ca.free(cr);
 }
 
@@ -253,19 +253,19 @@ Lit Solver::pickBranchLit()
 /*_________________________________________________________________________________________________
 |
 |  analyze : (confl : Clause*) (out_learnt : vec<Lit>&) (out_btlevel : int&)  ->  [void]
-|  
+|
 |  Description:
 |    Analyze conflict and produce a reason clause.
-|  
+|
 |    Pre-conditions:
 |      * 'out_learnt' is assumed to be cleared.
 |      * Current decision level must be greater than root level.
-|  
+|
 |    Post-conditions:
 |      * 'out_learnt[0]' is the asserting literal at level 'out_btlevel'.
-|      * If out_learnt.size() > 1 then 'out_learnt[1]' has the greatest decision level of the 
+|      * If out_learnt.size() > 1 then 'out_learnt[1]' has the greatest decision level of the
 |        rest of literals. There may be others from the same level though.
-|  
+|
 |________________________________________________________________________________________________@*/
 void Solver::analyze(CRef confl, vec<Lit>& out_learnt, int& out_btlevel)
 {
@@ -296,7 +296,7 @@ void Solver::analyze(CRef confl, vec<Lit>& out_learnt, int& out_btlevel)
                     out_learnt.push(q);
             }
         }
-        
+
         // Select next clause to look at:
         while (!seen[var(trail[index--])]);
         p     = trail[index+1];
@@ -318,7 +318,7 @@ void Solver::analyze(CRef confl, vec<Lit>& out_learnt, int& out_btlevel)
         for (i = j = 1; i < out_learnt.size(); i++)
             if (reason(var(out_learnt[i])) == CRef_Undef || !litRedundant(out_learnt[i], abstract_level))
                 out_learnt[j++] = out_learnt[i];
-        
+
     }else if (ccmin_mode == 1){
         for (i = j = 1; i < out_learnt.size(); i++){
             Var x = var(out_learnt[i]);
@@ -395,7 +395,7 @@ bool Solver::litRedundant(Lit p, uint32_t abstract_levels)
 /*_________________________________________________________________________________________________
 |
 |  analyzeFinal : (p : Lit)  ->  [void]
-|  
+|
 |  Description:
 |    Specialized analysis procedure to express the final conflict in terms of assumptions.
 |    Calculates the (possibly empty) set of assumptions that led to the assignment of 'p', and
@@ -430,14 +430,14 @@ void Solver::analyzeFinal(Lit p, vec<Lit>& out_conflict)
     seen[var(p)] = 0;
 }
 
-//TODO simplify clause undone
+/*//TODO simplify clause undone
 //TODO test needed
 /*_________________________________________________________________________________________________
 |
 |  newAnalyze : (confl : Clause*) (out_learnt : vec<Lit>&) (out_btlevel : int&)  ->  [void]
-|  
+|
 |  该方法消耗的存储空间似乎并非是最优的。
-|________________________________________________________________________________________________@*/
+|________________________________________________________________________________________________@/
 void Solver::newAnalyze(vec<vec<Lit>>& out_learnts, int& out_btlevel){
     for(int i = 0; i < imG.confls.size(); i++){
         vec<Lit> out_learnt;
@@ -527,7 +527,7 @@ void Solver::newAnalyze(vec<vec<Lit>>& out_learnts, int& out_btlevel){
             }
         }else
             a = b = out_learnt.size();
-            */
+            /
         max_literals += out_learnt.size();
         //out_learnt.shrink(a - b);
         tot_literals += out_learnt.size();
@@ -535,9 +535,9 @@ void Solver::newAnalyze(vec<vec<Lit>>& out_learnts, int& out_btlevel){
     }
 
 
-    
-}
 
+}
+*/
 /*_________________________________________________________________________________________________
 |
 |  analyze : (confl : Clause*) (out_learnt : vec<Lit>&) (out_btlevel : int&)  ->  [void]
@@ -547,7 +547,7 @@ void Solver::newAnalyze(vec<vec<Lit>>& out_learnts, int& out_btlevel){
 |________________________________________________________________________________________________@*/
 
 // TODO test needed!
-void Solver::analyze(Minisat::vec<Minisat::CRef> &confls, Minisat::vec<Minisat::vec<Minisat::Lit>> &out_learnts,
+void Solver::analyze(Minisat::vec<Minisat::CRef> &confls, Minisat::vec<Minisat::vec<Minisat::Lit> > &out_learnts,
                      int &out_btlevel) {
     int pathC = 0;
     Lit p     = lit_Undef;
@@ -622,7 +622,7 @@ void Solver::analyze(Minisat::vec<Minisat::CRef> &confls, Minisat::vec<Minisat::
                     Clause &c = ca[reason(var(out_learnts[i][a]))];
                     for (int k = 1; k < c.size(); k++)
                         if (!seen[var(c[k])] && level(var(c[k])) > 0) {
-                            out_learnts[i][j++] = out_learnts[i][a];
+                            out_learnts[i][k++] = out_learnts[i][a];
                             break;
                         }
                 }
@@ -677,7 +677,7 @@ int Solver::getTrailIndex(CRef cr,int& dl){
     Clause& cl = ca[cr];
     for(int i = 0; i < cl.size(); i++){
         if (dl < level(var(cl[i]))){
-            dl = level(var(cl[i]);
+            dl = level(var(cl[i]));
             max_lit = cl[i];
         }
     }
@@ -699,24 +699,35 @@ void Solver::uncheckedEnqueue(Lit p, CRef from)
         ca[vardata[var(p)].reason].resetCache();
     }
     vardata[var(p)] = mkVarData(from, decisionLevel());
+
     ca[from].keepinCache();
     /*TODO rebuild imG*/
     trail.push_(p);
 }
 
+Solver:: getDecisionLevel(Lit p,CRef from){
+}
 
-int getConflictLevel(Cref from){
-    Cref
+
+int Solver::getConflictLevel(CRef from){
+    int max = -1;
+    for(int i = 0; i<ca[from].size(); i++){
+        int level = vardata[var(ca[from][i])].level;
+        if(max > level){
+            max = level;
+        }
+    }
+    return max;
 }
 
 /*_________________________________________________________________________________________________
 |
 |  propagate : [void]  ->  [Clause*]
-|  
+|
 |  Description:
 |    Propagates all enqueued facts. If a conflict arises, the conflicting clause is returned,
 |    otherwise CRef_Undef.
-|  
+|
 |    Post-conditions:
 |      * the propagation queue is empty, even if there was a conflict.
 |________________________________________________________________________________________________@*/
@@ -858,16 +869,16 @@ void Solver:: propagate(vec<CRef>& confls)
 /*_________________________________________________________________________________________________
 |
 |  reduceDB : ()  ->  [void]
-|  
+|
 |  Description:
 |    Remove half of the learnt clauses, minus the clauses locked by the current assignment. Locked
 |    clauses are clauses that are reason to some assignment. Binary clauses are never removed.
 |________________________________________________________________________________________________@*/
-struct reduceDB_lt { 
+struct reduceDB_lt {
     ClauseAllocator& ca;
     reduceDB_lt(ClauseAllocator& ca_) : ca(ca_) {}
-    bool operator () (CRef x, CRef y) { 
-        return ca[x].size() > 2 && (ca[y].size() == 2 || ca[x].activity() < ca[y].activity()); } 
+    bool operator () (CRef x, CRef y) {
+        return ca[x].size() > 2 && (ca[y].size() == 2 || ca[x].activity() < ca[y].activity()); }
 };
 void Solver::reduceDB()
 {
@@ -916,7 +927,7 @@ void Solver::rebuildOrderHeap()
 /*_________________________________________________________________________________________________
 |
 |  simplify : [void]  ->  [bool]
-|  
+|
 |  Description:
 |    Simplify the clause database according to the current top-level assigment. Currently, the only
 |    thing done here is the removal of satisfied clauses, but more things can be put here.
@@ -1071,7 +1082,7 @@ lbool Solver::newSearch(int nof_conflicts)
     int         backtrack_level;
     int         conflictC = 0;
     //vec<Lit>    learnt_clause;
-    vec<vec<Lit>> learnt_clauses;
+    vec<vec<Lit> > learnt_clauses;
     starts++;
 
 
@@ -1360,7 +1371,7 @@ lbool Solver::newSolve_()
 
 //=================================================================================================
 // Writing CNF to DIMACS:
-// 
+//
 // FIXME: this needs to be rewritten completely.
 
 static Var mapVar(Var x, vec<Var>& map, Var& max)
@@ -1409,7 +1420,7 @@ void Solver::toDimacs(FILE* f, const vec<Lit>& assumps)
     for (int i = 0; i < clauses.size(); i++)
         if (!satisfied(ca[clauses[i]]))
             cnt++;
-        
+
     for (int i = 0; i < clauses.size(); i++)
         if (!satisfied(ca[clauses[i]])){
             Clause& c = ca[clauses[i]];
@@ -1479,11 +1490,11 @@ void Solver::garbageCollect()
 {
     // Initialize the next region to a size corresponding to the estimated utilization degree. This
     // is not precise but should avoid some unnecessary reallocations for the new region:
-    ClauseAllocator to(ca.size() - ca.wasted()); 
+    ClauseAllocator to(ca.size() - ca.wasted());
 
     relocAll(to);
     if (verbosity >= 2)
-        printf("|  Garbage collection:   %12d bytes => %12d bytes             |\n", 
+        printf("|  Garbage collection:   %12d bytes => %12d bytes             |\n",
                ca.size()*ClauseAllocator::Unit_Size, to.size()*ClauseAllocator::Unit_Size);
     to.moveTo(ca);
 }

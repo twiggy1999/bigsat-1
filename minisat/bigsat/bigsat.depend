@@ -1,0 +1,113 @@
+# depslib dependency file v1.0
+1547450073 source:/home/fix/Documents/bigsat/minisat/core/Main.cc
+	<errno.h>
+	<signal.h>
+	<zlib.h>
+	"../utils/System.h"
+	"../utils/ParseUtils.h"
+	"../utils/Options.h"
+	"../core/Dimacs.h"
+	"../core/Solver.h"
+
+1547450633 /home/fix/Documents/bigsat/minisat/utils/System.h
+	<fpu_control.h>
+	"../mtl/IntTypes.h"
+	<time.h>
+	<sys/time.h>
+	<sys/resource.h>
+	<unistd.h>
+
+1547448464 /home/fix/Documents/bigsat/minisat/mtl/IntTypes.h
+	<sys/int_types.h>
+	<sys/int_fmtio.h>
+	<sys/int_limits.h>
+	<stdint.h>
+	<inttypes.h>
+	<limits.h>
+
+1547448464 /home/fix/Documents/bigsat/minisat/utils/ParseUtils.h
+	<stdlib.h>
+	<stdio.h>
+	<zlib.h>
+
+1547450660 /home/fix/Documents/bigsat/minisat/utils/Options.h
+	<stdlib.h>
+	<stdio.h>
+	<math.h>
+	<string.h>
+	"../mtl/IntTypes.h"
+	"../mtl/Vec.h"
+	"../utils/ParseUtils.h"
+
+1547448464 /home/fix/Documents/bigsat/minisat/mtl/Vec.h
+	<assert.h>
+	<new>
+	"../mtl/IntTypes.h"
+	"../mtl/XAlloc.h"
+
+1547448464 /home/fix/Documents/bigsat/minisat/mtl/XAlloc.h
+	<errno.h>
+	<stdlib.h>
+
+1547450690 /home/fix/Documents/bigsat/minisat/core/Dimacs.h
+	<stdio.h>
+	"../utils/ParseUtils.h"
+	"../core/SolverTypes.h"
+	"Solver.h"
+
+1547451229 /home/fix/Documents/bigsat/minisat/core/SolverTypes.h
+	<assert.h>
+	"../mtl/IntTypes.h"
+	"../mtl/Alg.h"
+	"../mtl/Vec.h"
+	"../mtl/Map.h"
+	"../mtl/Alloc.h"
+
+1547450697 /home/fix/Documents/bigsat/minisat/mtl/Alg.h
+	"../mtl/Vec.h"
+
+1547450746 /home/fix/Documents/bigsat/minisat/mtl/Map.h
+	"IntTypes.h"
+	"Vec.h"
+
+1547448464 /home/fix/Documents/bigsat/minisat/mtl/Alloc.h
+	"../mtl/XAlloc.h"
+	"../mtl/Vec.h"
+
+1547452478 /home/fix/Documents/bigsat/minisat/core/Solver.h
+	"../mtl/Vec.h"
+	"../mtl/Heap.h"
+	"../mtl/Alg.h"
+	"../utils/Options.h"
+	"SolverTypes.h"
+	<zlib.h>
+
+1547450787 /home/fix/Documents/bigsat/minisat/mtl/Heap.h
+	"Vec.h"
+
+1547452492 source:/home/fix/Documents/bigsat/minisat/core/Solver.cc
+	<math.h>
+	"../mtl/Sort.h"
+	"Solver.h"
+	"../mtl/Queue.h"
+	<sys/types.h>
+	<dirent.h>
+	"Dimacs.h"
+
+1547448464 /home/fix/Documents/bigsat/minisat/mtl/Sort.h
+	"../mtl/Vec.h"
+
+1547448464 /home/fix/Documents/bigsat/minisat/mtl/Queue.h
+	"../mtl/Vec.h"
+
+1547452697 source:/home/fix/Documents/bigsat/minisat/utils/Options.cc
+	"../mtl/Sort.h"
+	"Options.h"
+	"ParseUtils.h"
+
+1547452708 source:/home/fix/Documents/bigsat/minisat/utils/System.cc
+	"System.h"
+	<stdio.h>
+	<stdlib.h>
+	<malloc/malloc.h>
+
