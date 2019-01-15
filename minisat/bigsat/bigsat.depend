@@ -1,5 +1,5 @@
 # depslib dependency file v1.0
-1547459168 source:/home/fix/Documents/bigsat/minisat/core/Main.cc
+1547535323 source:/home/fix/Documents/bigsat/minisat/core/Main.cc
 	<errno.h>
 	<signal.h>
 	<zlib.h>
@@ -74,7 +74,7 @@
 	"../mtl/XAlloc.h"
 	"../mtl/Vec.h"
 
-1547535020 /home/fix/Documents/bigsat/minisat/core/Solver.h
+1547535185 /home/fix/Documents/bigsat/minisat/core/Solver.h
 	"../mtl/Vec.h"
 	"../mtl/Heap.h"
 	"../mtl/Alg.h"
@@ -85,7 +85,7 @@
 1547450787 /home/fix/Documents/bigsat/minisat/mtl/Heap.h
 	"Vec.h"
 
-1547533261 source:/home/fix/Documents/bigsat/minisat/core/Solver.cc
+1547535191 source:/home/fix/Documents/bigsat/minisat/core/Solver.cc
 	<math.h>
 	"../mtl/Sort.h"
 	"Solver.h"

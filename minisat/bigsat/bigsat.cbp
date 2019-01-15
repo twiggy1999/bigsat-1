@@ -31,6 +31,29 @@
 		<Compiler>
 			<Add option="-Wall" />
 		</Compiler>
+		<Unit filename="../core/Dimacs.h" />
+		<Unit filename="../core/Main.cc" />
+		<Unit filename="../core/Makefile" />
+		<Unit filename="../core/Solver.cc" />
+		<Unit filename="../core/Solver.h" />
+		<Unit filename="../core/SolverTypes.h" />
+		<Unit filename="../mtl/Alg.h" />
+		<Unit filename="../mtl/Alloc.h" />
+		<Unit filename="../mtl/Heap.h" />
+		<Unit filename="../mtl/IntTypes.h" />
+		<Unit filename="../mtl/List.h" />
+		<Unit filename="../mtl/Map.h" />
+		<Unit filename="../mtl/Queue.h" />
+		<Unit filename="../mtl/Sort.h" />
+		<Unit filename="../mtl/Vec.h" />
+		<Unit filename="../mtl/XAlloc.h" />
+		<Unit filename="../mtl/config.mk" />
+		<Unit filename="../mtl/template.mk" />
+		<Unit filename="../utils/Options.cc" />
+		<Unit filename="../utils/Options.h" />
+		<Unit filename="../utils/ParseUtils.h" />
+		<Unit filename="../utils/System.cc" />
+		<Unit filename="../utils/System.h" />
 		<Extensions>
 			<envvars />
 			<code_completion />
