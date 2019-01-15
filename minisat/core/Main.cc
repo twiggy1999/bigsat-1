@@ -47,6 +47,11 @@ void printStats(Solver& solver)
     printf("CPU time              : %g s\n", cpu_time);
 }
 
+//Global var:in; Parameters: nParts & range;
+void partition(gzFile in, int nParts, double range){
+    //TODO Task1
+}
+
 
 static Solver* solver;
 // Terminate by notifying the solver and back out gracefully. This is mainly to have a test-case
