@@ -1338,7 +1338,8 @@ lbool Solver::newSolve_()
         }
         next = next % files.size();
         gzFile in  = gzopen(files[next],"rb");
-        {
+
+        // reset watches table
             for(int i = 0; i<nVars(); i++){
                 Lit temp = mkLit(i);
                 Watcher *j,*k,*end;
@@ -1361,7 +1362,16 @@ lbool Solver::newSolve_()
                 watches[~temp].shrink(j-k);
 
             }
+        //reset clause set in cache
+        CRef *i, *j, *end;
+        for(i = j = (CRef*) clauses,end = i + clauses.size(); i != end;){
+            if(ca[*i].is_reset()){
+                i++;
+                continue;
+            }
+            *i++ = *j++;
         }
+        clauses.shrink(i-j);
         parse_DIMACS(in, *this);
 
 
