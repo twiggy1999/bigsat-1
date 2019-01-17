@@ -21,7 +21,7 @@ OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWA
 #include <errno.h>
 
 #include <signal.h>
-#include <zlib.h>
+//#include <zlib.h>
 
 #include "../utils/System.h"
 #include "../utils/ParseUtils.h"
@@ -38,11 +38,11 @@ void printStats(Solver& solver)
 {
     double cpu_time = cpuTime();
     double mem_used = memUsedPeak();
-    printf("restarts              : %-12"PRIu64"\n", solver.starts);
-    printf("conflicts             : %-12"PRIu64"   (%.0f /sec)\n", solver.conflicts   , solver.conflicts   /cpu_time);
-    printf("decisions             : %-12"PRIu64"   (%4.2f %% random) (%.0f /sec)\n", solver.decisions, (float)solver.rnd_decisions*100 / (float)solver.decisions, solver.decisions   /cpu_time);
-    printf("propagations          : %-12"PRIu64"   (%.0f /sec)\n", solver.propagations, solver.propagations/cpu_time);
-    printf("conflict literals     : %-12"PRIu64"   (%4.2f %% deleted)\n", solver.tot_literals, (solver.max_literals - solver.tot_literals)*100 / (double)solver.max_literals);
+    printf("restarts              : %llu\n", solver.starts);
+    printf("conflicts             : %-12llu   (%.0f /sec)\n", solver.conflicts   , solver.conflicts   /cpu_time);
+    printf("decisions             : %-12llu   (%4.2f %% random) (%.0f /sec)\n", solver.decisions, (float)solver.rnd_decisions*100 / (float)solver.decisions, solver.decisions   /cpu_time);
+    printf("propagations          : %-12llu   (%.0f /sec)\n", solver.propagations, solver.propagations/cpu_time);
+    printf("conflict literals     : %-12llu   (%4.2f %% deleted)\n", solver.tot_literals, (solver.max_literals - solver.tot_literals)*100 / (double)solver.max_literals);
     if (mem_used != 0) printf("Memory used           : %.2f MB\n", mem_used);
     printf("CPU time              : %g s\n", cpu_time);
 }
@@ -158,7 +158,7 @@ int main(int argc, char** argv)
         signal(SIGINT, SIGINT_interrupt);
         signal(SIGXCPU,SIGINT_interrupt);
 
-        /*if (!S.simplify()){
+        if (!S.simplify()){
             if (res != NULL) fprintf(res, "UNSAT\n"), fclose(res);
             if (S.verbosity > 0){
                 printf("===============================================================================\n");
@@ -167,18 +167,18 @@ int main(int argc, char** argv)
                 printf("\n"); }
             printf("UNSATISFIABLE\n");
             exit(20);
-        }*/
+        }
 
         vec<Lit> dummy;
         lbool ret = S.solveLimited(dummy);
-        for(;false;){
-            //read file in dir and solve;
-        }
 
         if (S.verbosity > 0){
             printStats(S);
             printf("\n"); }
         printf(ret == l_True ? "SATISFIABLE\n" : ret == l_False ? "UNSATISFIABLE\n" : "INDETERMINATE\n");
+        if (res == NULL){
+            res = fopen("/Users/lulu/Documents/bigsat/bigsat/minisat/data/res.out","wb");
+        }
         if (res != NULL){
             if (ret == l_True){
                 fprintf(res, "SAT\n");

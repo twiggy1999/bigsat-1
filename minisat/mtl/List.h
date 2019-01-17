@@ -4,8 +4,8 @@
 #include <assert.h>
 #include <new>
 
-#include "mtl/IntTypes.h"
-#include "mtl/XAlloc.h"
+#include "../mtl/IntTypes.h"
+#include "../mtl/XAlloc.h"
 
 namespace Minisat {
 

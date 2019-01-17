@@ -18,6 +18,7 @@ DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
 OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 **************************************************************************************************/
 
+#include <zlib.h>
 #include <math.h>
 
 #include "../mtl/Sort.h"
@@ -26,6 +27,7 @@ OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWA
 #include <sys/types.h>
 #include <dirent.h>
 #include "Dimacs.h"
+
 
 using namespace Minisat;
 
@@ -136,7 +138,7 @@ Var Solver::newVar(bool sign, bool dvar)
 
 bool Solver::addClause_(vec<Lit>& ps)
 {
-    assert(decisionLevel() == 0);
+    assert(decisionLevel() == 0 || qhead_reset);
     if (!ok) return false;
 
     // Check if clause is satisfied and remove false/duplicate literals:
@@ -663,7 +665,6 @@ void Solver::analyze(Minisat::vec<Minisat::CRef> &confls, Minisat::vec<Minisat::
             out_learnts[max_index].copyTo(out_learnts[0]);
             out_learnts[0].clear();
             out_learnts[0].copyTo(temp);
-            free(temp);
         }
 
     }
@@ -714,9 +715,9 @@ void Solver::uncheckedEnqueue(Lit p, CRef from)
     }
     //vardata[var(p)] = mkVarData(from, decisionLevel());
     vardata[var(p)] = mkVarData(from, getDecisionLevel(p,from));
-
-    ca[from].keepinCache();
-    /*TODO rebuild imG*/
+    if(from != CRef_Undef){
+        ca[from].keepinCache();
+    }
     trail.push_(p);
 }
 
@@ -1305,7 +1306,15 @@ lbool Solver::newSolve_()
     DIR* dirp = opendir(dirName);
     struct dirent *dp;
     while((dp=readdir(dirp)) != NULL){
-        files.push(dp-> d_name);
+        if(dp->d_type == DT_DIR){
+            continue;
+        }
+        size_t len = strlen(dp->d_name)+strlen(dirName);
+        char* abpath = new char[len+2];
+        strcpy(abpath,dirName);
+        strcat(abpath,"/");
+        strcat(abpath,dp->d_name);
+        files.push(abpath);
     }
     closedir(dirp);
 
@@ -1331,14 +1340,10 @@ lbool Solver::newSolve_()
     int curr_restarts = 0;
     int next = 0;
     while (sat_files != files.size()){
-        if (qhead_reset){
-            for(int i =0;i < nVars() ; i++){
-                Clause cr = ca[vardata[i].reason];
-            }
-        }
+
         next = next % files.size();
         gzFile in  = gzopen(files[next],"rb");
-
+        qhead_reset = true;
         // reset watches table
             for(int i = 0; i<nVars(); i++){
                 Lit temp = mkLit(i);
@@ -1370,10 +1375,10 @@ lbool Solver::newSolve_()
                 continue;
             }
             *i++ = *j++;
+            ca.free(*(i-1));
         }
         clauses.shrink(i-j);
         parse_DIMACS(in, *this);
-
 
 
         while (status == l_Undef){
@@ -1389,6 +1394,7 @@ lbool Solver::newSolve_()
         if (status == l_True){
             // Extend & copy model:
             model.growTo(nVars());
+            sat_files++;
             next++;
             continue;
             //for (int i = 0; i < nVars(); i++) model[i] = value(i);
@@ -1399,7 +1405,7 @@ lbool Solver::newSolve_()
 
 
 
-    //cancelUntil(0);
+    cancelUntil(0);
     return status;
 }
 

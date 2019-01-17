@@ -58,7 +58,7 @@ static void parse_DIMACS_main(B& in, Solver& S) {
     for (;;){
         skipWhitespace(in);
         if (*in == EOF) break;
-        else if (*in == 'p'){
+        else if (*in == 'p' and !S.is_reset()){
             if (eagerMatch(in, "p cnf")){
                 vars    = parseInt(in);
                 clauses = parseInt(in);
@@ -76,6 +76,9 @@ static void parse_DIMACS_main(B& in, Solver& S) {
             S.addClause_(lits); }
     }
     if (vars != S.nVars())
+        if(vars > S.nVars()){
+            fprintf(stderr,"%d variables hasn't appear in current file",vars-S.nVars());
+        }
         fprintf(stderr, "WARNING! DIMACS header mismatch: wrong number of variables.\n");
     if (cnt  != clauses)
         fprintf(stderr, "WARNING! DIMACS header mismatch: wrong number of clauses.\n");

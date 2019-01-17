@@ -198,7 +198,7 @@ protected:
     Heap<VarOrderLt>    order_heap;       // A priority queue of variables ordered with respect to the variable activity.
     double              progress_estimate;// Set by 'search()'.
     bool                remove_satisfied; // Indicates whether possibly inefficient linear scan for satisfied clauses should be performed in 'simplify'.
-    const char*         dirName = "../data";          // Dir name which stores partitioned Files
+    const char*         dirName = "/Users/lulu/Documents/bigsat/bigsat/minisat/data";          // Dir name which stores partitioned Files
     ClauseAllocator     ca;
     vec<Lit>            analyze_stack;
     // Temporaries (to reduce allocation overhead). Each variable is prefixed by the method in which it is
@@ -288,6 +288,9 @@ protected:
     // Returns a random integer 0 <= x < size. Seed must never be 0.
     static inline int irand(double& seed, int size) {
         return (int)(drand(seed) * size); }
+
+public:
+    bool is_reset(){return qhead_reset;}
 };
 
 
