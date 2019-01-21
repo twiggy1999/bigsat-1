@@ -143,7 +143,9 @@ int main(int argc, char** argv)
         //gzclose(in);
 
         FILE* res = (argc >= 3) ? fopen(argv[2], "wb") : NULL;
-
+        if (res == NULL){
+            res = fopen("/Users/lulu/Documents/bigsat/res2.out","wb");
+        }
         if (S.verbosity > 0){
             printf("|  Number of variables:  %12d                                         |\n", S.nVars());
             printf("|  Number of clauses:    %12d                                         |\n", S.nClauses()); }
@@ -176,9 +178,6 @@ int main(int argc, char** argv)
             printStats(S);
             printf("\n"); }
         printf(ret == l_True ? "SATISFIABLE\n" : ret == l_False ? "UNSATISFIABLE\n" : "INDETERMINATE\n");
-        if (res == NULL){
-            res = fopen("/Users/lulu/Documents/bigsat/bigsat/minisat/data/res.out","wb");
-        }
         if (res != NULL){
             if (ret == l_True){
                 fprintf(res, "SAT\n");
@@ -190,8 +189,9 @@ int main(int argc, char** argv)
                 fprintf(res, "UNSAT\n");
             else
                 fprintf(res, "INDET\n");
-            fclose(res);
         }
+        fclose(res);
+
 
 #ifdef NDEBUG
         exit(ret == l_True ? 10 : ret == l_False ? 20 : 0);     // (faster than "return", which will invoke the destructor for 'Solver')

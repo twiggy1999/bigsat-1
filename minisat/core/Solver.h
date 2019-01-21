@@ -186,7 +186,7 @@ protected:
     vec<char>           decision;         // Declares if a variable is eligible for selection in the decision heuristic.
     vec<Lit>            trail;            // Assignment stack; stores all assigments made in the order they were made.
     vec<int>            trail_lim;        // Separator indices for different decision levels in 'trail'.
-    vec<int>            var_dllevel;
+    vec<int>            trail_index;
     vec<VarData>        vardata;          // Stores reason and level for each variable.
 
     //imGraph             imG;              // Stores implication Graph;
@@ -268,6 +268,7 @@ protected:
     // Misc:
     //
     int      getDecisionLevel (Lit p,CRef from);
+    //int      getMaxDecisionLevel (CRef from);
     int      decisionLevel    ()      const; // Gives the current decisionlevel.
     uint32_t abstractLevel    (Var x) const; // Used to represent an abstraction of sets of decision levels.
     CRef     reason           (Var x) const;

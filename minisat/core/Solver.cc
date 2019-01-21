@@ -131,6 +131,7 @@ Var Solver::newVar(bool sign, bool dvar)
     polarity .push(sign);
     decision .push();
     trail    .capacity(v+1);
+    trail_index.push(-1);
     setDecisionVar(v, dvar);
     return v;
 }
@@ -145,15 +146,16 @@ bool Solver::addClause_(vec<Lit>& ps)
     sort(ps);
     Lit p; int i, j;
     for (i = j = 0, p = lit_Undef; i < ps.size(); i++)
-        if (value(ps[i]) == l_True || ps[i] == ~p)
+        if ((value(ps[i]) == l_True && !qhead_reset) || ps[i] == ~p)
             return true;
-        else if (value(ps[i]) != l_False && ps[i] != p)
+        else if (value(ps[i]) != l_False && !qhead_reset && ps[i] != p)
             ps[j++] = p = ps[i];
+        else j++;
     ps.shrink(i - j);
 
     if (ps.size() == 0)
         return ok = false;
-    else if (ps.size() == 1){
+    else if (ps.size() == 1 && !qhead_reset){
         uncheckedEnqueue(ps[0]);
         return ok = (propagate() == CRef_Undef);
     }else{
@@ -216,6 +218,7 @@ void Solver::cancelUntil(int level) {
         for (int c = trail.size()-1; c >= trail_lim[level]; c--){
             Var      x  = var(trail[c]);
             assigns [x] = l_Undef;
+            trail_index[x] = - 1 ;
             if (phase_saving > 1 || (phase_saving == 1) && c > trail_lim.last())
                 polarity[x] = sign(trail[c]);
             insertVarOrder(x); }
@@ -292,7 +295,7 @@ void Solver::analyze(CRef confl, vec<Lit>& out_learnt, int& out_btlevel)
             if (!seen[var(q)] && level(var(q)) > 0){
                 varBumpActivity(var(q));
                 seen[var(q)] = 1;
-                if (level(var(q)) >= decisionLevel())
+                if (level(var(q)) >= getDecisionLevel(q,confl))
                     pathC++;
                 else
                     out_learnt.push(q);
@@ -562,14 +565,21 @@ void Solver::analyze(Minisat::vec<Minisat::CRef> &confls, Minisat::vec<Minisat::
     assert(confls.size() != 0);
     int max_index = -1;
     for(int i = 0; i < confls.size();i++){
+        while(out_learnts.size() < i + 1){
+            out_learnts.push();
+        }
         out_learnts[i].push();      // (leave room for the asserting literal)
 
         // 找到confl clause中decision level最大的lit在Trail的位置，并向前扫描。
         int dl = -1;
         int index = getTrailIndex(confls[i],dl);
-
+        p = lit_Undef;
+        for(int len = 0; len < trail.size(); len++){
+            seen[var(trail[len])] = 0;
+        }
         assert(index != -1);     // 否则没找到当且confl clause中
         do {
+
             assert(confls[i] != CRef_Undef);// (otherwise should be UIP)
             Clause &c = ca[confls[i]];
 
@@ -583,26 +593,30 @@ void Solver::analyze(Minisat::vec<Minisat::CRef> &confls, Minisat::vec<Minisat::
                     varBumpActivity(var(q));
                     assert(level(var(q)) <= dl); //
                     seen[var(q)] = 1;
-                    if (level(var(q)) == dl) //origin >=，但应该是仅有assert(==)
+                    if (level(var(q)) >= dl) //origin >=，但应该是仅有assert(==)
                         pathC++;
                     else
                         out_learnts[i].push(q);
                 }
+                // Select next clause to look at:
+                // 这里利用trail去做BFS
             }
 
-            // Select next clause to look at:
-            // 这里利用trail去做BFS
             while (!seen[var(trail[index--])]);
             p = trail[index + 1];
             confls[i]=reason(var(p));
             seen[var(p)] = 0;
             pathC--;
 
+
         } while (pathC > 0);
         out_learnts[i][0] = ~p;
 
         // Simplify conflict clause:
+        // TODO need to reconduct
+
         int a, b;
+        /*
         out_learnts[i].copyTo(analyze_toclear);
         if (ccmin_mode == 2) {
             uint32_t abstract_level = 0;
@@ -629,7 +643,7 @@ void Solver::analyze(Minisat::vec<Minisat::CRef> &confls, Minisat::vec<Minisat::
                         }
                 }
             }
-        } else
+        } else*/
             a = b = out_learnts[i].size();
 
         max_literals += out_learnts[i].size();
@@ -644,7 +658,7 @@ void Solver::analyze(Minisat::vec<Minisat::CRef> &confls, Minisat::vec<Minisat::
         else {
             int max_i = 1;
             // Find the first literal assigned at the next-highest level:
-            for (int a = 2; a < out_learnts[i].size(); a++)
+            for (int a = 1; a < out_learnts[i].size(); a++)
                 if (level(var(out_learnts[i][a])) > level(var(out_learnts[i][max_i])))
                     max_i = a;
             // Swap-in this literal at index 1:
@@ -652,42 +666,38 @@ void Solver::analyze(Minisat::vec<Minisat::CRef> &confls, Minisat::vec<Minisat::
             out_learnts[i][max_i] = out_learnts[i][1];
             out_learnts[i][1] = p;
             if(out_btlevel > level(var(p)) || out_btlevel == -1){
-                max_index = i;
                 out_btlevel = level(var(p));
                 max_index = i;
             }
         }
         //确保是最小的进行backtrack
-        if (out_btlevel!=0){
-            vec<Lit> temp;
-            temp.copyTo(out_learnts[max_index]);
-            out_learnts[max_index].clear();
-            out_learnts[max_index].copyTo(out_learnts[0]);
-            out_learnts[0].clear();
-            out_learnts[0].copyTo(temp);
-        }
-
     }
+
+    if (out_btlevel!=0){
+        if(max_index == 0) return;
+        vec<Lit> temp;
+        temp.copyTo(out_learnts[max_index]);
+        out_learnts[max_index].clear();
+        out_learnts[max_index].copyTo(out_learnts[0]);
+        out_learnts[0].clear();
+        out_learnts[0].copyTo(temp);
+    }
+
 
     for (int j = 0; j < analyze_toclear.size(); j++) seen[var(analyze_toclear[j])] = 0;    // ('seen[]' is now cleared)
 }
 
 //get cr's max lit's trail index
 int Solver::getTrailIndex(CRef cr,int& dl){
-    Lit max_lit;
     Clause& cl = ca[cr];
+    int index = -1;
     for(int i = 0; i < cl.size(); i++){
-        if (dl < level(var(cl[i]))){
+        if(trail_index[var(cl[i])] > index ){
+            index = trail_index[var(cl[i])];
             dl = level(var(cl[i]));
-            max_lit = cl[i];
         }
     }
-    for(int i = trail_lim[dl - 1]; i<trail_lim[dl]; i++){
-        if(trail[i] == max_lit){
-            return i;
-        }
-    }
-    return -1;
+    return index;
 
 }
 
@@ -704,21 +714,32 @@ int Solver:: getDecisionLevel(Lit p,CRef from){
     return max;
 }
 
+/*int Solver:: getMaxDecisionLevel(CRef from){
+    int max = -1;
+    for(int i = 0; i < ca[from].size(); i++){
+        if(level(var(ca[from][i])) > max){
+            max = level(var(ca[from][i]));
+        }
+    }
+    return max;
+}*/
+
 void Solver::uncheckedEnqueue(Lit p, CRef from)
 {
     assert(value(p) == l_Undef);
     assigns[var(p)] = lbool(!sign(p));
     //int level = getConflictLevel(from);
 
-    if(vardata[var(p)].reason != CRef_Undef){
-        ca[vardata[var(p)].reason].resetCache();
-    }
+    //if(vardata[var(p)].reason != CRef_Undef){
+    //    ca[vardata[var(p)].reason].resetCache();
+    //}
     //vardata[var(p)] = mkVarData(from, decisionLevel());
     vardata[var(p)] = mkVarData(from, getDecisionLevel(p,from));
-    if(from != CRef_Undef){
-        ca[from].keepinCache();
-    }
+    //if(from != CRef_Undef){
+    //    ca[from].keepinCache();
+    //}
     trail.push_(p);
+    trail_index[var(p)] = trail.size();
 }
 
 
@@ -869,6 +890,8 @@ void Solver:: propagate(vec<CRef>& confls)
                 /*while (i < end)
                     *j++ = *i++;*/
                 sat_files = 0;
+                confls.push(cr);
+                //printf("reset sat!\n");
             }else
                 uncheckedEnqueue(first, cr);
 
@@ -878,7 +901,7 @@ void Solver:: propagate(vec<CRef>& confls)
     }
     propagations += num_props;
     simpDB_props -= num_props;
-    qhead_reset = false;
+    //qhead_reset = false;
 }
 
 /*_________________________________________________________________________________________________
@@ -1105,17 +1128,19 @@ lbool Solver::newSearch(int nof_conflicts)
         vec<CRef> confls;
         propagate(confls);
 
-        if (confls[0] != CRef_Undef){
+
+        if (confls.size() !=0 and confls[0] != CRef_Undef){
             // CONFLICT
             conflicts++; conflictC++;
             if (decisionLevel() == 0) return l_False;
 
             learnt_clauses.clear();
             learnt_clauses.push();
-            if(confls.size() == 1){
+            if(confls.size() == 1 and !qhead_reset){
                 analyze(confls[0],learnt_clauses[0],backtrack_level);
             }else{
-                analyze(confls,learnt_clauses,backtrack_level);
+                analyze(confls[0],learnt_clauses[0],backtrack_level);
+                qhead_reset = false;
             };
             //analyze(confl, learnt_clause, backtrack_level);
 
@@ -1302,6 +1327,7 @@ lbool Solver::newSolve_()
 {
     // get partition files
     //int no_sat_files = 0;
+    bool flag = false;
     vec <char *> files;
     DIR* dirp = opendir(dirName);
     struct dirent *dp;
@@ -1309,7 +1335,12 @@ lbool Solver::newSolve_()
         if(dp->d_type == DT_DIR){
             continue;
         }
+
+        static char* fliter = ".cnf";
+        char* pos = strstr(dp->d_name,fliter);
+        if(pos == NULL) continue;
         size_t len = strlen(dp->d_name)+strlen(dirName);
+
         char* abpath = new char[len+2];
         strcpy(abpath,dirName);
         strcat(abpath,"/");
@@ -1342,9 +1373,24 @@ lbool Solver::newSolve_()
     while (sat_files != files.size()){
 
         next = next % files.size();
+        //debug
+        vec<CRef> impCRefs;
+        impCRefs.clear(true);
+        for(int i = 0; i< nVars(); i++
+        ){
+            if(vardata[i].reason!=CRef_Undef){
+               impCRefs.push(vardata[i].reason);
+            }
+        }
+
         gzFile in  = gzopen(files[next],"rb");
-        qhead_reset = true;
+        qhead_reset = true && flag;
+        if(status == l_True && qhead_reset){
+            status = l_Undef;
+        }
         // reset watches table
+        // 留下在imp图上的clause?
+        /*
             for(int i = 0; i<nVars(); i++){
                 Lit temp = mkLit(i);
                 Watcher *j,*k,*end;
@@ -1367,23 +1413,72 @@ lbool Solver::newSolve_()
                 watches[~temp].shrink(j-k);
 
             }
+        */
+        for(int i = 0; i < nVars(); i++){
+            Lit temp = mkLit(i);
+            Watcher *j,*k,*end;
+            for (j = k = (Watcher*) watches[temp], end = j + watches[temp].size();j != end;){
+                for (int a = 0;a < impCRefs.size(); a++){
+                    if(impCRefs[a] == (j->cref)){
+                        *k++ = *j;
+                        break;
+                    }
+                }
+                j++;
+            }
+            watches[temp].shrink(j-k);
+            for (j = k = (Watcher*) watches[~temp], end = j + watches[~temp].size();j != end;){
+                for (int a = 0;a < impCRefs.size(); a++){
+                    if(impCRefs[a] == (j->cref)){
+                        *k++ = *j;
+                        break;
+                    }
+                }
+                j++;
+            }
+            watches[~temp].shrink(j-k);
+        }
+        /*
+        //全删：
+        for(int i = 0; i<nVars(); i++){
+            Lit temp = mkLit(i);
+            watches[temp].shrink(watches[temp].size());
+            watches[~temp].shrink(watches[~temp].size());
+
+        }
+         */
         //reset clause set in cache
         CRef *i, *j, *end;
         for(i = j = (CRef*) clauses,end = i + clauses.size(); i != end;){
-            if(ca[*i].is_reset()){
-                i++;
-                continue;
+            for(int check = 0 ; check < impCRefs.size(); check++){
+                if(impCRefs[check] == *i){
+                    *j++ = *i++;
+                    goto NextCRef;
+                }
             }
-            *i++ = *j++;
-            ca.free(*(i-1));
+            removeClause(*i);
+            i++;
+            NextCRef: ;
         }
         clauses.shrink(i-j);
+        for(i = j = (CRef*) learnts,end = i + learnts.size(); i != end;){
+            for(int check = 0 ; check < impCRefs.size(); check++){
+                if(impCRefs[check] == *i){
+                    *j++ = *i++;
+                    goto NextCRef1;
+                }
+            }
+            removeClause(*i);
+            i++;
+            NextCRef1: ;
+        }
+        learnts.shrink(i-j);
+        assert(impCRefs.size() == clauses.size()+learnts.size() or not qhead_reset);
         parse_DIMACS(in, *this);
-
-
+        //rebuildOrderHeap();
         while (status == l_Undef){
             double rest_base = luby_restart ? luby(restart_inc, curr_restarts) : pow(restart_inc, curr_restarts);
-            status = search(rest_base * restart_first);
+            status = newSearch(rest_base * restart_first);
             if (!withinBudget()) break;
             curr_restarts++;
         }
@@ -1394,17 +1489,23 @@ lbool Solver::newSolve_()
         if (status == l_True){
             // Extend & copy model:
             model.growTo(nVars());
+
+            //debugging code
+            for(int i = 0; i < assigns.size(); i++){
+                printf("%d:%d  ",i+1,assigns[i]);
+            }
+            if(!flag) {flag = true;}
             sat_files++;
             next++;
-            continue;
             //for (int i = 0; i < nVars(); i++) model[i] = value(i);
+            continue;
         }else if (status == l_False && conflict.size() == 0)
             ok = false;
             break;
     }
 
 
-
+    for (int i = 0; i < nVars(); i++) model[i] = value(i);
     cancelUntil(0);
     return status;
 }

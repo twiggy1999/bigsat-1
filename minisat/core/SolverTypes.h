@@ -123,7 +123,7 @@ typedef RegionAllocator<uint32_t>::Ref CRef;
 class Clause {
     struct {
         unsigned mark      : 2;
-        unsigned learnt    : 2;
+        unsigned learnt    : 1;
         unsigned has_extra : 1;
         unsigned reloced   : 1;
         unsigned size      : 27; }                            header;
@@ -158,11 +158,11 @@ public:
             abstraction |= 1 << (var(data[i].lit) & 31);
         data[header.size].abs = abstraction;  }
 public:
-    void keepinCache(){header.learnt | 10;}
-    void resetCache(){header.learnt & 01;}
-    bool is_reset(){
-        return header.learnt >>1 ? true:false;
-    }
+    //void keepinCache(){header.learnt | 10;}
+    //void resetCache(){header.learnt & 01;}
+    //bool is_reset(){
+    //    return header.learnt >>1 ? true:false;
+    //}
     int          size        ()      const   { return header.size; }
     void         shrink      (int i)         { assert(i <= size()); if (header.has_extra) data[header.size-i] = data[header.size]; header.size -= i; }
     void         pop         ()              { shrink(1); }
