@@ -1,4 +1,3 @@
-#include "All.h"
 #include "trie.h"
 
 typedef std::set<p_node> Set;

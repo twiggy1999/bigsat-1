@@ -1,5 +1,4 @@
 #pragma once
-#include "All.h"
 #include <set>
 #include <vector>
 

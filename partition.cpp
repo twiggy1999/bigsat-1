@@ -1,4 +1,3 @@
-#include "All.h"
 #include <cstdio>
 #include <cstring>
 #include <string>
@@ -124,6 +123,17 @@ int partition(const char* infile, int nparts, double range) {   //传入待分�
 			clause.clear();
 			while (fscanf(in, "%d", &tem) && tem) clause.push_back(tem);
 			sort(clause.begin(), clause.end());
+			
+			//remove duplicate elements in a clause
+			int del = 0;
+			for (int i = 0, j = 0; i < clause.size(); i++, j++) {
+				clause[j] = clause[i];
+				while (i < (int)clause.size() - 1 && 
+					clause[i] == clause[i + 1])
+				{ i++, del++; }
+			}
+			clause.erase(clause.begin() + clause.size() - del, clause.end());
+
 			file_contant.push_back(clause);
 		}
 		sort(file_contant.begin(), file_contant.end(), cmp);
