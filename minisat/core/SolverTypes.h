@@ -123,10 +123,10 @@ typedef RegionAllocator<uint32_t>::Ref CRef;
 class Clause {
     struct {
         unsigned mark      : 2;
-        unsigned learnt    : 1;
+        unsigned learnt    : 2;
         unsigned has_extra : 1;
         unsigned reloced   : 1;
-        unsigned size      : 27; }                            header;
+        unsigned size      : 26; }                            header;
     union { Lit lit; float act; uint32_t abs; CRef rel; } data[0];
 
     friend class ClauseAllocator;
@@ -158,15 +158,17 @@ public:
             abstraction |= 1 << (var(data[i].lit) & 31);
         data[header.size].abs = abstraction;  }
 public:
-    //void keepinCache(){header.learnt | 10;}
-    //void resetCache(){header.learnt & 01;}
+    void propagated(){header.learnt = header.learnt | 10;}
+    void resetprop(){header.learnt = header.learnt & 01;}
+    bool ispropagted(){return header.learnt >> 1 & 1 ? 1 : 0;}
+
     //bool is_reset(){
     //    return header.learnt >>1 ? true:false;
     //}
     int          size        ()      const   { return header.size; }
     void         shrink      (int i)         { assert(i <= size()); if (header.has_extra) data[header.size-i] = data[header.size]; header.size -= i; }
     void         pop         ()              { shrink(1); }
-    bool         learnt      ()      const   { return header.learnt; }
+    bool         learnt      ()      const   { return header.learnt & 01; }
     bool         has_extra   ()      const   { return header.has_extra; }
     uint32_t     mark        ()      const   { return header.mark; }
     void         mark        (uint32_t m)    { header.mark = m; }
@@ -216,7 +218,7 @@ class ClauseAllocator : public RegionAllocator<uint32_t>
     {
         assert(sizeof(Lit)      == sizeof(uint32_t));
         assert(sizeof(float)    == sizeof(uint32_t));
-        bool use_extra = learnt | extra_clause_field;
+        bool use_extra = learnt & 01 | extra_clause_field;
 
         CRef cid = RegionAllocator<uint32_t>::alloc(clauseWord32Size(ps.size(), use_extra));
         new (lea(cid)) Clause(ps, use_extra, learnt);

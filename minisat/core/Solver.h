@@ -186,7 +186,10 @@ protected:
     vec<char>           decision;         // Declares if a variable is eligible for selection in the decision heuristic.
     vec<Lit>            trail;            // Assignment stack; stores all assigments made in the order they were made.
     vec<int>            trail_lim;        // Separator indices for different decision levels in 'trail'.
+
     vec<int>            trail_index;
+    //vec<vec<Lit>>       newTrail;
+    int                 newTrailSize = 0;
     vec<VarData>        vardata;          // Stores reason and level for each variable.
 
     //imGraph             imG;              // Stores implication Graph;
@@ -198,7 +201,7 @@ protected:
     Heap<VarOrderLt>    order_heap;       // A priority queue of variables ordered with respect to the variable activity.
     double              progress_estimate;// Set by 'search()'.
     bool                remove_satisfied; // Indicates whether possibly inefficient linear scan for satisfied clauses should be performed in 'simplify'.
-    const char*         dirName = "/Users/lulu/Documents/bigsat/bigsat/minisat/data";          // Dir name which stores partitioned Files
+    const char*         dirName = "/Users/lulu/Documents/bigsat/bigsat/minisat/data/sat";          // Dir name which stores partitioned Files
     ClauseAllocator     ca;
     vec<Lit>            analyze_stack;
     // Temporaries (to reduce allocation overhead). Each variable is prefixed by the method in which it is
@@ -229,11 +232,12 @@ protected:
     Lit      pickBranchLit    ();                                                      // Return the next decision variable.
     void     newDecisionLevel ();                                                      // Begins a new decision level.
     void     uncheckedEnqueue (Lit p, CRef from = CRef_Undef);                         // Enqueue a literal. Assumes value of literal is undefined.
-    void     newUncheckedEnqueue(Lit p, int dlevel);
+    void     newUncheckedEnqueue(Lit p, int dlevel, CRef from = CRef_Undef);
     bool     enqueue          (Lit p, CRef from = CRef_Undef);                         // Test if fact 'p' contradicts current state, enqueue otherwise.
     CRef     propagate        ();                                                      // Perform unit propagation. Returns possibly conflicting clause.
     void     propagate        (vec<CRef>& confls);                                                      // bigsat method
     void     cancelUntil      (int level);                                             // Backtrack until a certain level.
+    void     newCancelUntil   (int level);
     void     analyze          (CRef confl, vec<Lit>& out_learnt, int& out_btlevel);    // (bt = backtrack)
     //void     newAnalyze       (vec<vec<Lit>>& out_learnt, int& out_btlevel);
     void     analyze          (vec<CRef>& confls, vec<vec<Lit> >& out_learnts, int& out_btlevel);
@@ -263,12 +267,13 @@ protected:
     bool     locked           (const Clause& c) const; // Returns TRUE if a clause is a reason for some implication in the current state.
     bool     satisfied        (const Clause& c) const; // Returns TRUE if a clause is satisfied in the current state.
 
-    void     relocAll         (ClauseAllocator& to);
+    //void     relocAll         (ClauseAllocator& to);
+    void     newRelocAll(ClauseAllocator& to);
 
     // Misc:
     //
     int      getDecisionLevel (Lit p,CRef from);
-    //int      getMaxDecisionLevel (CRef from);
+    int      getMaxIndex (Lit &p, CRef from);
     int      decisionLevel    ()      const; // Gives the current decisionlevel.
     uint32_t abstractLevel    (Var x) const; // Used to represent an abstraction of sets of decision levels.
     CRef     reason           (Var x) const;
@@ -338,19 +343,21 @@ inline bool     Solver::addClause       (Lit p)                 { add_tmp.clear(
 inline bool     Solver::addClause       (Lit p, Lit q)          { add_tmp.clear(); add_tmp.push(p); add_tmp.push(q); return addClause_(add_tmp); }
 inline bool     Solver::addClause       (Lit p, Lit q, Lit r)   { add_tmp.clear(); add_tmp.push(p); add_tmp.push(q); add_tmp.push(r); return addClause_(add_tmp); }
 inline bool     Solver::locked          (const Clause& c) const { return value(c[0]) == l_True && reason(var(c[0])) != CRef_Undef && ca.lea(reason(var(c[0]))) == &c; }
-inline void     Solver::newDecisionLevel()                      { trail_lim.push(trail.size()); }
-
+inline void     Solver::newDecisionLevel()                      { trail_lim.push(trail.size());}
+//inline void     Solver::newDecisionLevel()                      {newTrail.push(), trail_lim.push(newTrailSize);}
 inline int      Solver::decisionLevel ()      const   { return trail_lim.size(); }
+//inline int      Solver::decisionLevel()   const {return newTrail.size();}
 inline uint32_t Solver::abstractLevel (Var x) const   { return 1 << (level(x) & 31); }
 inline lbool    Solver::value         (Var x) const   { return assigns[x]; }
 inline lbool    Solver::value         (Lit p) const   { return assigns[var(p)] ^ sign(p); }
 inline lbool    Solver::modelValue    (Var x) const   { return model[x]; }
 inline lbool    Solver::modelValue    (Lit p) const   { return model[var(p)] ^ sign(p); }
-inline int      Solver::nAssigns      ()      const   { return trail.size(); }
+//inline int      Solver::nAssigns      ()      const   { return trail.size(); }
+inline int      Solver::nAssigns() const              {return newTrailSize;}
 inline int      Solver::nClauses      ()      const   { return clauses.size(); }
 inline int      Solver::nLearnts      ()      const   { return learnts.size(); }
 inline int      Solver::nVars         ()      const   { return vardata.size(); }
-inline int      Solver::nFreeVars     ()      const   { return (int)dec_vars - (trail_lim.size() == 0 ? trail.size() : trail_lim[0]); }
+//inline int      Solver::nFreeVars     ()      const   { return (int)dec_vars - (trail_lim.size() == 0 ? trail.size() : trail_lim[0]); }
 inline void     Solver::setPolarity   (Var v, bool b) { polarity[v] = b; }
 inline void     Solver::setDecisionVar(Var v, bool b)
 {
@@ -373,11 +380,11 @@ inline bool     Solver::withinBudget() const {
 // FIXME: after the introduction of asynchronous interrruptions the solve-versions that return a
 // pure bool do not give a safe interface. Either interrupts must be possible to turn off here, or
 // all calls to solve must return an 'lbool'. I'm not yet sure which I prefer.
-inline bool     Solver::solve         ()                    { budgetOff(); assumptions.clear(); return solve_() == l_True; }
-inline bool     Solver::solve         (Lit p)               { budgetOff(); assumptions.clear(); assumptions.push(p); return solve_() == l_True; }
-inline bool     Solver::solve         (Lit p, Lit q)        { budgetOff(); assumptions.clear(); assumptions.push(p); assumptions.push(q); return solve_() == l_True; }
-inline bool     Solver::solve         (Lit p, Lit q, Lit r) { budgetOff(); assumptions.clear(); assumptions.push(p); assumptions.push(q); assumptions.push(r); return solve_() == l_True; }
-inline bool     Solver::solve         (const vec<Lit>& assumps){ budgetOff(); assumps.copyTo(assumptions); return solve_() == l_True; }
+//inline bool     Solver::solve         ()                    { budgetOff(); assumptions.clear(); return solve_() == l_True; }
+//inline bool     Solver::solve         (Lit p)               { budgetOff(); assumptions.clear(); assumptions.push(p); return solve_() == l_True; }
+//inline bool     Solver::solve         (Lit p, Lit q)        { budgetOff(); assumptions.clear(); assumptions.push(p); assumptions.push(q); return solve_() == l_True; }
+//inline bool     Solver::solve         (Lit p, Lit q, Lit r) { budgetOff(); assumptions.clear(); assumptions.push(p); assumptions.push(q); assumptions.push(r); return solve_() == l_True; }
+//inline bool     Solver::solve         (const vec<Lit>& assumps){ budgetOff(); assumps.copyTo(assumptions); return solve_() == l_True; }
 inline lbool    Solver::solveLimited  (const vec<Lit>& assumps){ assumps.copyTo(assumptions); /*return solve_();*/ return newSolve_(); }
 inline bool     Solver::okay          ()      const   { return ok; }
 
