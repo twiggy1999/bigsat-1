@@ -29,7 +29,7 @@ OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWA
 #include <dirent.h>
 #include "Dimacs.h"
 
-
+//#define DEBUG
 using namespace Minisat;
 
 //=================================================================================================
@@ -305,6 +305,7 @@ void Solver::analyze(CRef confl, vec<Lit>& out_learnt, int& out_btlevel)
     Lit p     = lit_Undef;
     Lit max_lit = lit_Undef;
     getMaxIndex(max_lit,confl);
+#ifdef DEBUG
     FILE* df = fopen(debugFile,"a");
     fprintf(df,"\n\n analyze begin:\n");
     for(int i = 0 ; i < trail.size();i++){
@@ -312,6 +313,8 @@ void Solver::analyze(CRef confl, vec<Lit>& out_learnt, int& out_btlevel)
     }
 
     fprintf(df,"\n");
+    fclose(df);
+#endif
     // Generate conflict clause:
     //
     out_learnt.push();      // (leave room for the asserting literal)
@@ -326,15 +329,20 @@ void Solver::analyze(CRef confl, vec<Lit>& out_learnt, int& out_btlevel)
         //fprintf(df,"var:%d, index:%d, level:%d\n",var(max_lit),index,level(var(max_lit)));
         Clause& c = ca[confl];
         //fprintf(df,"\n");
+#ifdef DEBUG
+        FILE* df = fopen(debugFile,"a");
         for(int i = 0; i< c.size(); i++){
             fprintf(df,"var(%d):lit(%d) ",var(c[i]),c[i]);
         }
         fprintf(df,"%s",ca[confl].learnt() ? "yes":"no");
         fprintf(df,"\n");
-
+        fclose(df);
+#endif
         if (c.learnt())
             claBumpActivity(c);
-
+#ifdef DEBug
+        df = fopen(debugFile,"a");
+#endif
        // for (int j = (p == lit_Undef) ? 0 : 1; j < c.size(); j++){
        for (int j = 0; j < c.size(); j++){
            if(var(c[j]) == var(p)) continue;
@@ -349,7 +357,9 @@ void Solver::analyze(CRef confl, vec<Lit>& out_learnt, int& out_btlevel)
                     //seen[var(q)] = 1;
                 else{
                     out_learnt.push(q);
+#ifdef DEBUG
                     fprintf(df,"out_learnt[%d] : var: %d : level: %d || ",out_learnt.size() - 1, var(q),level(var(q)));
+#endif
                 }
 
                 //out_learnt.push(mkLit(var(q),assigns[var(q)] == l_True?false:true));
@@ -357,6 +367,9 @@ void Solver::analyze(CRef confl, vec<Lit>& out_learnt, int& out_btlevel)
 
             }
         }
+#ifdef DEBUG
+       fclose(df);
+#endif
 
         // Select next clause to look at:
         // 这里可以用queue吗？
@@ -371,8 +384,11 @@ void Solver::analyze(CRef confl, vec<Lit>& out_learnt, int& out_btlevel)
 
     }while (pathC > 0);
     out_learnt[0] = ~p;
+#ifdef DEBUG
+    df = fopen(debugFile,"a");
     fprintf(df,"out_learnt[0] : var: %d : level: %d || ", var(p),level(var(p)));
-
+    fclose(df);
+#endif
     // Simplify conflict clause:
     int i, j;
     out_learnt.copyTo(analyze_toclear);
@@ -444,7 +460,11 @@ void Solver::analyze(CRef confl, vec<Lit>& out_learnt, int& out_btlevel)
             if (out_btlevel != 0)
                 out_btlevel --;
     }
+#ifdef DEBUG
+    df = fopen(debugFile,"a");
     fprintf(df,"\noutputlevel:%d",out_btlevel);
+    fclose(df);
+#endif
     for(int i = 0; i < nVars(); i++){
         seen[i] = 0;
     }
@@ -677,11 +697,15 @@ void Solver::newAnalyze(vec<vec<Lit>>& out_learnts, int& out_btlevel){
 // TODO test needed!
 void Solver::analyze(vec<CRef> &confls, vec<vec<Lit> > &out_learnts,
                      int &out_btlevel) {
+#ifdef DEBUG
     FILE* df = fopen(debugFile,"a");
     fprintf(df,"\n\n begin multi analyze: \n");
+
     for(int i = 0 ; i < trail.size();i++){
         fprintf(df,"%d(var): %d(level),", assigns[var(trail[i])] == l_True ? var(trail[i]): - var(trail[i]), level(var(trail[i])));
     }
+    fclose(df);
+#endif
     int pathC = 0;
 
 
@@ -697,9 +721,12 @@ void Solver::analyze(vec<CRef> &confls, vec<vec<Lit> > &out_learnts,
         Lit p     = lit_Undef;
         getMaxIndex(max_lit, confls[i]);
         int index = trail.size();
+#ifdef DEBUG
+        df = fopen(debugFile,"a");
         fprintf(df,"\n begin %d analyze: \n",i);
         fprintf(df,"max_var:%d, max_index:%d, max_level:%d\n",var(max_lit),index,level(var(max_lit)));
-
+        fclose(df);
+#endif
 
         out_learnts.push();
         out_learnts[i].push();      // (leave room for the asserting literal)
@@ -711,14 +738,21 @@ void Solver::analyze(vec<CRef> &confls, vec<vec<Lit> > &out_learnts,
 
             assert(confls[i] != CRef_Undef);// (otherwise should be UIP)
             Clause &c = ca[confls[i]];
+#ifdef DEBUG
+            df = fopen(debugFile,"a");
             fprintf(df,"max_var:%d, max_index:%d, max_level:%d\n",var(p),index,level(var(p)));
             for (int j = 0; j < c.size(); j++){
                 fprintf(df,"var(%d):lit(%d) ",var(c[j]),c[j]);
             }
             fprintf(df,"%s",c.learnt() ? "yes":"no");
             fprintf(df,"\n");
+            fclose(df);
+#endif
             if (c.learnt())
                 claBumpActivity(c);
+#ifdef DEBUG
+            df = fopen(debugFile,"a");
+#endif
 
             //for (int j = (p == lit_Undef) ? 0 : 1; j < c.size(); j++) {
             for(int j = 0; j<c.size();j++){
@@ -733,7 +767,9 @@ void Solver::analyze(vec<CRef> &confls, vec<vec<Lit> > &out_learnts,
                         pathC++;
                     else{
                         out_learnts[i].push(q);
+#ifdef DEBUG
                         fprintf(df,"out_learnt[%d] : var: %d : level: %d || ", out_learnts[i].size() - 1,var(q),level(var(q)));
+#endif
                     }
 
 
@@ -741,11 +777,17 @@ void Solver::analyze(vec<CRef> &confls, vec<vec<Lit> > &out_learnts,
                 // Select next clause to look at:
                 // 这里利用trail去做BFS
             }
-
+#ifdef DEBUG
+            fclose(df);
+#endif
             while (!seen[var(trail[index--])]);
             //while (!seen[var(newTrail[dl][index --])])
             p = trail[index + 1];  //to rebuild
+#ifdef DEBUG
+            df = fopen(debugFile,"a");
             fprintf(df,"out_learnt[0] : var: %d : level: %d || ", var(p),level(var(p)));
+            fclose(df);
+#endif
             confls[i]=reason(var(p));
             seen[var(p)] = 0;
             pathC--;
@@ -761,14 +803,14 @@ void Solver::analyze(vec<CRef> &confls, vec<vec<Lit> > &out_learnts,
         // Simplify conflict clause:
         // TODO need to reconduct
 
-        /*int a, b;
-
+        int a, b;
+/*
         out_learnts[i].copyTo(analyze_toclear);
         if (ccmin_mode == 2) {
             uint32_t abstract_level = 0;
-            for (i = 1; i < out_learnts[i].size(); i++)
+            for (a = 1; a < out_learnts[i].size(); i++)
                 abstract_level |= abstractLevel(
-                        var(out_learnts[a][i])); // (maintain an abstraction of levels involved in conflict)
+                        var(out_learnts[i][a])); // (maintain an abstraction of levels involved in conflict)
 
             for (a = b = 1; i < out_learnts[i].size(); i++)
                 if (reason(var(out_learnts[i][a])) == CRef_Undef || !litRedundant(out_learnts[i][a], abstract_level))
@@ -789,13 +831,13 @@ void Solver::analyze(vec<CRef> &confls, vec<vec<Lit> > &out_learnts,
                         }
                 }
             }
-        } else
+        } else*/
             a = b = out_learnts[i].size();
 
         max_literals += out_learnts[i].size();
         out_learnts[i].shrink(a - b);
         tot_literals += out_learnts[i].size();
-*/
+
         // Find correct backtrack level:
 
 
@@ -827,8 +869,11 @@ void Solver::analyze(vec<CRef> &confls, vec<vec<Lit> > &out_learnts,
     if (out_btlevel!=0){
         out_btlevel --;
         if(max_index == 0){
+#ifdef DEBUG
+            df = fopen(debugFile,"a");
             fprintf(df,"outputlevel:%d\n",out_btlevel);
             fclose(df);
+#endif
             return;
         }
 
@@ -842,43 +887,15 @@ void Solver::analyze(vec<CRef> &confls, vec<vec<Lit> > &out_learnts,
 
 
     for (int j = 0; j < analyze_toclear.size(); j++) seen[var(analyze_toclear[j])] = 0;    // ('seen[]' is now cleared)
+#ifdef DEBUG
+    df = fopen(debugFile,"a");
     fprintf(df,"outputlevel:%d\n",out_btlevel);
     fclose(df);
+#endif
 }
 
 //get cr's max lit's trail index
 
-
-int Solver::getTrailIndex(CRef cr,int& dl){
-    int index = -1;
-    //get max dl
-    for(int i = 0; i < ca[cr].size(); i++){
-        if (trail_index[var(ca[cr][0])] > index){
-            index = trail_index[var(ca[cr][i])];
-        }
-    }
-    /*for( int j = 0; j<ca[cr].size(); j++){
-        if(dl < level(var(ca[cr][j]))){
-            dl = level(var(ca[cr][j]));
-        }
-    }
-    //get newTrails max index
-    j = 0;
-
-    for(int i = 0; i < ca[cr].size(); i++){
-        if(level(var(ca[cr][i])) == dl){
-            for(;j<newTrail[dl - 1].size(); j++){
-                if(var(newTrail[dl - 1][j]) == var(ca[cr][i])){
-                    index = j;
-                    break;
-                }
-            }
-        }
-    }*/
-
-    return index;
-
-}
 
 int Solver:: getDecisionLevel(Lit p,CRef from){
     if(from == CRef_Undef){
@@ -890,9 +907,11 @@ int Solver:: getDecisionLevel(Lit p,CRef from){
             max = level(var(ca[from][i]));
         }
     }
+#ifdef DEBUG
     if(max == 0){
         printf("\nfind a dl = 0!\n");
     }
+#endif
     return max;
 }
 
@@ -1079,7 +1098,9 @@ void Solver:: propagate(vec<CRef>& confls)
 
    if(qhead_reset) {
         qhead = 0;
+#ifdef DEBUG
         printf("qhead reset!");
+#endif
    }
 
     //int last_level = 0;
@@ -1423,6 +1444,7 @@ lbool Solver::newSearch(int nof_conflicts)
     for (;;){
         vec<CRef> confls;
         //CRef test = propagate();
+#ifdef DEBUG
         FILE * df = fopen(debugFile,"a");
         fprintf(df,"\n\nstart searching...\n ");
         for(int i = 0 ; i < trail.size();i++){
@@ -1430,7 +1452,9 @@ lbool Solver::newSearch(int nof_conflicts)
         }
         fprintf(df,"\ndecisionLevel: %d\n",decisionLevel());
         fclose(df);
+#endif
         propagate(confls);
+#ifdef DEBUG
         df = fopen(debugFile,"a");
         fprintf(df,"after propa...\n");
         for(int i = 0; i < confls.size(); i++){
@@ -1444,6 +1468,7 @@ lbool Solver::newSearch(int nof_conflicts)
         }
         fprintf(df,"\ndecisionLevel: %d\n",decisionLevel());
         fclose(df);
+#endif
         //if(test != CRef_Undef){
 
          if (confls.size() !=0 and confls[0] != CRef_Undef){
@@ -1468,8 +1493,10 @@ lbool Solver::newSearch(int nof_conflicts)
             //analyze(test,learnt_clauses[0],backtrack_level);
             qhead_reset = false;
             //analyze(confl, learnt_clause, backtrack_level);
+#ifdef DEBUG
             if(backtrack_level == 0)
                 printf("let's debug!!");
+#endif
             cancelUntil(backtrack_level);
 
 
@@ -1693,6 +1720,7 @@ lbool Solver::newSolve_()
 {
     // get partition files
     //int no_sat_files = 0;
+#ifdef DEBUG
     FILE * df = fopen(debugFile,"w");
     time_t timep;
     time (&timep);
@@ -1700,6 +1728,7 @@ lbool Solver::newSolve_()
     strftime(tmp, sizeof(tmp), "%Y-%m-%d %H:%M:%S",localtime(&timep) );
     fprintf(df,"lets begin! %s",tmp);
     fclose(df);
+#endif
     vec <char *> files;
     DIR* dirp = opendir(dirName);
     struct dirent *dp;
@@ -1850,9 +1879,11 @@ lbool Solver::newSolve_()
         //rebuildOrderHeap();
         while (status == l_Undef){
             double rest_base = luby_restart ? luby(restart_inc, curr_restarts) : pow(restart_inc, curr_restarts);
+#ifdef DEBUG
             FILE * df = fopen(debugFile,"a");
             fprintf(df,"\nnow file is %s",files[next]);
             fclose(df);
+#endif
             status = newSearch(rest_base * restart_first);
             if (!withinBudget()) break;
             curr_restarts++;
@@ -1870,6 +1901,7 @@ lbool Solver::newSolve_()
                 printf("%d:%d  ",i+1,assigns[i]);
             }
             sat_files++;
+#ifdef DEBUG
             FILE * df = fopen(debugFile,"a");
             //for(int i = 0; i < sat_files; i++){
             //    int j = (next - i) % files.size();
@@ -1879,8 +1911,9 @@ lbool Solver::newSolve_()
             for(int i = 0; i < trail.size(); i++){
                 fprintf(df,"%d : %d ,", assigns[var(trail[i])] == l_True ? var(trail[i]) : - var(trail[i]), level(var(trail[i])));
             }
-            next++;
             fclose(df);
+#endif
+            next++;
             //for (int i = 0; i < nVars(); i++) model[i] = value(i);
             continue;
         }else if (status == l_False && conflict.size() == 0){
