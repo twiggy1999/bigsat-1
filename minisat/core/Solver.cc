@@ -794,6 +794,10 @@ void Solver::analyze(vec<CRef> &confls, vec<vec<Lit> > &out_learnts,
 
         } while (pathC > 0);
         out_learnts[i][0] = ~p;
+        if(out_btlevel == -1 or out_btlevel > level(var(out_learnts[i][0]))){
+            out_btlevel = level(var(out_learnts[i][0]));
+            max_index = i;
+        }
 
         //reset seen[]
         for(int seenC = 0; seenC < seen.size(); seenC++){
@@ -804,15 +808,15 @@ void Solver::analyze(vec<CRef> &confls, vec<vec<Lit> > &out_learnts,
         // TODO need to reconduct
 
         int a, b;
-/*
+
         out_learnts[i].copyTo(analyze_toclear);
         if (ccmin_mode == 2) {
             uint32_t abstract_level = 0;
-            for (a = 1; a < out_learnts[i].size(); i++)
+            for (a = 1; a < out_learnts[i].size(); a++)
                 abstract_level |= abstractLevel(
                         var(out_learnts[i][a])); // (maintain an abstraction of levels involved in conflict)
 
-            for (a = b = 1; i < out_learnts[i].size(); i++)
+            for (a = b = 1; a < out_learnts[i].size(); a++)
                 if (reason(var(out_learnts[i][a])) == CRef_Undef || !litRedundant(out_learnts[i][a], abstract_level))
                     out_learnts[i][b++] = out_learnts[i][a];
 
@@ -826,12 +830,12 @@ void Solver::analyze(vec<CRef> &confls, vec<vec<Lit> > &out_learnts,
                     Clause &c = ca[reason(var(out_learnts[i][a]))];
                     for (int k = 1; k < c.size(); k++)
                         if (!seen[var(c[k])] && level(var(c[k])) > 0) {
-                            out_learnts[i][k++] = out_learnts[i][a];
+                            out_learnts[i][b++] = out_learnts[i][a];
                             break;
                         }
                 }
             }
-        } else*/
+        } else
             a = b = out_learnts[i].size();
 
         max_literals += out_learnts[i].size();
@@ -858,6 +862,7 @@ void Solver::analyze(vec<CRef> &confls, vec<vec<Lit> > &out_learnts,
                 out_btlevel = level(var(p));
                 max_index = i;
             }*/
+            if (out_learnts[i].size()<1) continue;
             if(out_btlevel == -1 or out_btlevel > level(var(out_learnts[i][0]))){
                 out_btlevel = level(var(out_learnts[i][0]));
                 max_index = i;
