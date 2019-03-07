@@ -720,6 +720,7 @@ void Solver::analyze(vec<CRef> &confls, vec<vec<Lit> > &out_learnts,
         Lit max_lit = lit_Undef;
         Lit p     = lit_Undef;
         getMaxIndex(max_lit, confls[i]);
+        int max_level = level(var(max_lit));
         int index = trail.size();
 #ifdef DEBUG
         df = fopen(debugFile,"a");
@@ -763,7 +764,7 @@ void Solver::analyze(vec<CRef> &confls, vec<vec<Lit> > &out_learnts,
                     varBumpActivity(var(q));
                     //assert(level(var(q)) <= dl); //
                     seen[var(q)] = 1;
-                    if (level(var(q)) >= level(var(max_lit))) //origin >=，但应该是仅有assert(==)
+                    if (level(var(q)) >= max_level) //origin >=，但应该是仅有assert(==)
                         pathC++;
                     else{
                         out_learnts[i].push(q);
@@ -794,8 +795,9 @@ void Solver::analyze(vec<CRef> &confls, vec<vec<Lit> > &out_learnts,
 
         } while (pathC > 0);
         out_learnts[i][0] = ~p;
-        if(out_btlevel == -1 or out_btlevel > level(var(out_learnts[i][0]))){
-            out_btlevel = level(var(out_learnts[i][0]));
+
+        if(out_btlevel == -1 or out_btlevel > max_level){
+            out_btlevel = max_level;
             max_index = i;
         }
 
@@ -848,7 +850,7 @@ void Solver::analyze(vec<CRef> &confls, vec<vec<Lit> > &out_learnts,
         if (out_learnts[i].size() == 1){
             out_btlevel = 0;
             max_index = i;
-        }else {
+        }//else {
             /*int max_i = 1;
             // Find the first literal assigned at the next-highest level:
             for (int a = 1; a < out_learnts[i].size(); a++)
@@ -863,11 +865,11 @@ void Solver::analyze(vec<CRef> &confls, vec<vec<Lit> > &out_learnts,
                 max_index = i;
             }*/
             if (out_learnts[i].size()<1) continue;
-            if(out_btlevel == -1 or out_btlevel > level(var(out_learnts[i][0]))){
+            /*if(out_btlevel == -1 or out_btlevel > level(var(out_learnts[i][0]))){
                 out_btlevel = level(var(out_learnts[i][0]));
                 max_index = i;
-            }
-        }
+            }*/
+        //}
         //确保是最小的进行backtrack
     }
 
@@ -1529,6 +1531,7 @@ lbool Solver::newSearch(int nof_conflicts)
 
                 }
             }
+            learnt_clauses.clear(true);
 
 
 
