@@ -202,6 +202,7 @@ protected:
     double              progress_estimate;// Set by 'search()'.
     bool                remove_satisfied; // Indicates whether possibly inefficient linear scan for satisfied clauses should be performed in 'simplify'.
     const char*         dirName = "/Users/lulu/Documents/bigsat/bigsat/minisat/data/sat";          // Dir name which stores partitioned Files
+    const char*         debugFile = "/Users/lulu/Documents/bigsat/bigsat/minisat/debug.log";
     ClauseAllocator     ca;
     vec<Lit>            analyze_stack;
     // Temporaries (to reduce allocation overhead). Each variable is prefixed by the method in which it is

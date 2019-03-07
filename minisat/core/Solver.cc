@@ -20,6 +20,7 @@ OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWA
 
 #include <zlib.h>
 #include <math.h>
+#include <time.h>
 
 #include "../mtl/Sort.h"
 #include "Solver.h"
@@ -222,11 +223,14 @@ void Solver::cancelUntil(int levelC) {
         for (int c = trail.size()-1; c >= trail_lim[levelC]; c--){
             Var      x  = var(trail[c]);
             assigns [x] = l_Undef;
+            vardata[x].reason = CRef_Undef;
+            vardata[x].level = -1;
             trail_index[x] = - 1 ;
             if (phase_saving > 1 || (phase_saving == 1) && c > trail_lim.last())
                 polarity[x] = sign(trail[c]);
             insertVarOrder(x); }
         qhead = trail_lim[levelC];
+        //qhead = 0;
         trail.shrink(trail.size() - trail_lim[levelC]);
         trail_lim.shrink(trail_lim.size() - levelC);
     }
@@ -300,18 +304,33 @@ void Solver::analyze(CRef confl, vec<Lit>& out_learnt, int& out_btlevel)
     int pathC = 0;
     Lit p     = lit_Undef;
     Lit max_lit = lit_Undef;
+    getMaxIndex(max_lit,confl);
+    FILE* df = fopen(debugFile,"a");
+    fprintf(df,"\n\n analyze begin:\n");
+    for(int i = 0 ; i < trail.size();i++){
+        fprintf(df,"%d(var): %d(level),", assigns[var(trail[i])] == l_True ? var(trail[i]): - var(trail[i]), level(var(trail[i])));
+    }
+
+    fprintf(df,"\n");
     // Generate conflict clause:
     //
     out_learnt.push();      // (leave room for the asserting literal)
     //int current_dl = getDecisionLevel(lit_Undef,confl);
     //int index   = newTrail[current_dl].size() - 1;
     //int index = -1;
-
+    //for(int i = 0; i < nVars(); i++) seen[i] = 0;
     int index = trail.size() - 1;
     do{
         assert(confl != CRef_Undef); // (otherwise should be UIP)
-        index = getMaxIndex(max_lit, confl);
+        //getMaxIndex(max_lit, confl);
+        //fprintf(df,"var:%d, index:%d, level:%d\n",var(max_lit),index,level(var(max_lit)));
         Clause& c = ca[confl];
+        //fprintf(df,"\n");
+        for(int i = 0; i< c.size(); i++){
+            fprintf(df,"var(%d):lit(%d) ",var(c[i]),c[i]);
+        }
+        fprintf(df,"%s",ca[confl].learnt() ? "yes":"no");
+        fprintf(df,"\n");
 
         if (c.learnt())
             claBumpActivity(c);
@@ -325,11 +344,14 @@ void Solver::analyze(CRef confl, vec<Lit>& out_learnt, int& out_btlevel)
                 varBumpActivity(var(q));
                 seen[var(q)] = 1;
                 //if (level(var(q)) >= decisionLevel())
-                if (level(var(q)) >= level(var(max_lit)))
+                if (level(var(q)) >= level( var(max_lit)))
                     pathC++;
                     //seen[var(q)] = 1;
-                else
-                out_learnt.push(q);
+                else{
+                    out_learnt.push(q);
+                    fprintf(df,"out_learnt[%d] : var: %d : level: %d || ",out_learnt.size() - 1, var(q),level(var(q)));
+                }
+
                 //out_learnt.push(mkLit(var(q),assigns[var(q)] == l_True?false:true));
 
 
@@ -349,6 +371,7 @@ void Solver::analyze(CRef confl, vec<Lit>& out_learnt, int& out_btlevel)
 
     }while (pathC > 0);
     out_learnt[0] = ~p;
+    fprintf(df,"out_learnt[0] : var: %d : level: %d || ", var(p),level(var(p)));
 
     // Simplify conflict clause:
     int i, j;
@@ -393,14 +416,37 @@ void Solver::analyze(CRef confl, vec<Lit>& out_learnt, int& out_btlevel)
     else{
         int max_i = 1;
         // Find the first literal assigned at the next-highest level:
-        for (int i = 2; i < out_learnt.size(); i++)
+        for (int i = 2; i < out_learnt.size(); i++){
             if (level(var(out_learnt[i])) > level(var(out_learnt[max_i])))
                 max_i = i;
+        }
+
         // Swap-in this literal at index 1:
         Lit p             = out_learnt[max_i];
         out_learnt[max_i] = out_learnt[1];
         out_learnt[1]     = p;
+
         out_btlevel       = level(var(p));
+
+        if(out_btlevel == 0){
+            for (int i = 1; i < out_learnt.size(); i++){
+                if(level(var(out_learnt[i])) == 0){
+                    if(assigns[var(out_learnt[i])] != lbool(sign(out_learnt[i]))){
+                        return;
+                    }
+                }
+            }
+            out_btlevel = level(var(out_learnt[0])) - 1;
+        }
+        //
+
+        if(level(var(out_learnt[0])) == out_btlevel)
+            if (out_btlevel != 0)
+                out_btlevel --;
+    }
+    fprintf(df,"\noutputlevel:%d",out_btlevel);
+    for(int i = 0; i < nVars(); i++){
+        seen[i] = 0;
     }
 
     for (int j = 0; j < analyze_toclear.size(); j++) seen[var(analyze_toclear[j])] = 0;    // ('seen[]' is now cleared)
@@ -631,6 +677,11 @@ void Solver::newAnalyze(vec<vec<Lit>>& out_learnts, int& out_btlevel){
 // TODO test needed!
 void Solver::analyze(vec<CRef> &confls, vec<vec<Lit> > &out_learnts,
                      int &out_btlevel) {
+    FILE* df = fopen(debugFile,"a");
+    fprintf(df,"\n\n begin multi analyze: \n");
+    for(int i = 0 ; i < trail.size();i++){
+        fprintf(df,"%d(var): %d(level),", assigns[var(trail[i])] == l_True ? var(trail[i]): - var(trail[i]), level(var(trail[i])));
+    }
     int pathC = 0;
 
 
@@ -640,10 +691,16 @@ void Solver::analyze(vec<CRef> &confls, vec<vec<Lit> > &out_learnts,
     //int index   = trail.size() - 1;
     assert(confls.size() != 0);
     int max_index = -1;
+
     for(int i = 0; i < confls.size();i++){
-        Lit max_lit;
+        Lit max_lit = lit_Undef;
         Lit p     = lit_Undef;
-        int index = getMaxIndex(max_lit, confls[i]);
+        getMaxIndex(max_lit, confls[i]);
+        int index = trail.size();
+        fprintf(df,"\n begin %d analyze: \n",i);
+        fprintf(df,"max_var:%d, max_index:%d, max_level:%d\n",var(max_lit),index,level(var(max_lit)));
+
+
         out_learnts.push();
         out_learnts[i].push();      // (leave room for the asserting literal)
 
@@ -654,7 +711,12 @@ void Solver::analyze(vec<CRef> &confls, vec<vec<Lit> > &out_learnts,
 
             assert(confls[i] != CRef_Undef);// (otherwise should be UIP)
             Clause &c = ca[confls[i]];
-
+            fprintf(df,"max_var:%d, max_index:%d, max_level:%d\n",var(p),index,level(var(p)));
+            for (int j = 0; j < c.size(); j++){
+                fprintf(df,"var(%d):lit(%d) ",var(c[j]),c[j]);
+            }
+            fprintf(df,"%s",c.learnt() ? "yes":"no");
+            fprintf(df,"\n");
             if (c.learnt())
                 claBumpActivity(c);
 
@@ -669,8 +731,12 @@ void Solver::analyze(vec<CRef> &confls, vec<vec<Lit> > &out_learnts,
                     seen[var(q)] = 1;
                     if (level(var(q)) >= level(var(max_lit))) //origin >=，但应该是仅有assert(==)
                         pathC++;
-                    else
+                    else{
                         out_learnts[i].push(q);
+                        fprintf(df,"out_learnt[%d] : var: %d : level: %d || ", out_learnts[i].size() - 1,var(q),level(var(q)));
+                    }
+
+
                 }
                 // Select next clause to look at:
                 // 这里利用trail去做BFS
@@ -679,6 +745,7 @@ void Solver::analyze(vec<CRef> &confls, vec<vec<Lit> > &out_learnts,
             while (!seen[var(trail[index--])]);
             //while (!seen[var(newTrail[dl][index --])])
             p = trail[index + 1];  //to rebuild
+            fprintf(df,"out_learnt[0] : var: %d : level: %d || ", var(p),level(var(p)));
             confls[i]=reason(var(p));
             seen[var(p)] = 0;
             pathC--;
@@ -732,9 +799,10 @@ void Solver::analyze(vec<CRef> &confls, vec<vec<Lit> > &out_learnts,
         // Find correct backtrack level:
 
 
-        if (out_learnts[i].size() == 1)
+        if (out_learnts[i].size() == 1){
             out_btlevel = 0;
-        else {
+            max_index = i;
+        }else {
             /*int max_i = 1;
             // Find the first literal assigned at the next-highest level:
             for (int a = 1; a < out_learnts[i].size(); a++)
@@ -758,7 +826,12 @@ void Solver::analyze(vec<CRef> &confls, vec<vec<Lit> > &out_learnts,
 
     if (out_btlevel!=0){
         out_btlevel --;
-        if(max_index == 0) return;
+        if(max_index == 0){
+            fprintf(df,"outputlevel:%d\n",out_btlevel);
+            fclose(df);
+            return;
+        }
+
         vec<Lit> temp;
         out_learnts[max_index].copyTo(temp);
         out_learnts[max_index].clear();
@@ -769,6 +842,8 @@ void Solver::analyze(vec<CRef> &confls, vec<vec<Lit> > &out_learnts,
 
 
     for (int j = 0; j < analyze_toclear.size(); j++) seen[var(analyze_toclear[j])] = 0;    // ('seen[]' is now cleared)
+    fprintf(df,"outputlevel:%d\n",out_btlevel);
+    fclose(df);
 }
 
 //get cr's max lit's trail index
@@ -896,7 +971,7 @@ void Solver::newUncheckedEnqueue(Lit p, int dlevel, CRef from) {
         }
         trail[trail_lim[dlevel - 1]] = p;
         for(int i = dlevel; i < decisionLevel(); i++){
-            trail_lim[i - 1] ++;
+            trail_lim[i] ++;
         }
         trail_index[var(p)] = trail_lim[dlevel - 1];
         return;
@@ -1004,6 +1079,7 @@ void Solver:: propagate(vec<CRef>& confls)
 
    if(qhead_reset) {
         qhead = 0;
+        printf("qhead reset!");
    }
 
     //int last_level = 0;
@@ -1052,14 +1128,36 @@ void Solver:: propagate(vec<CRef>& confls)
                 *j++ = w; continue; }
 
             // Look for new watch:
+            int max_index = trail_index[var(c[0])] > trail_index[var(c[1])] ? 0 : 1;
             for (int k = 2; k < c.size(); k++)
                 if (value(c[k]) != l_False){
                     c[1] = c[k]; c[k] = false_lit;
                     watches[~c[1]].push(w);
-                    goto NextClause1; }
+                    goto NextClause1;
+                }else{
+                    if ((trail_index[var(c[max_index])] < trail_index[var(c[k])]))
+                        max_index = k;
+                }
+            if(qhead_reset){
+                if(max_index > 1){
+                    Lit temp = c[max_index];
+                    c[max_index] = c[1];
+                    c[1] = temp;
+                    Watcher tempw = Watcher(cr,c[0]);
+                    for(int w_i = 0; w_i<watches[~c[0]].size();w_i++){
+                        if(watches[~c[0]][w_i].cref == cr){
+                            watches[~c[0]][w_i].blocker = c[0];
+                        }
+                    }
+                    watches[~c[1]].push(tempw);
+                } else
+                    *j++ = w;
+            }else{
+                *j++ = w;
+            }
             // 注意watches[~c[0]]还没有更新
             // Did not find watch -- clause is unit under assignment:
-            *j++ = w;
+            //*j++ = w;
             if (value(first) == l_False){
                 //conflict_find;
 
@@ -1325,7 +1423,27 @@ lbool Solver::newSearch(int nof_conflicts)
     for (;;){
         vec<CRef> confls;
         //CRef test = propagate();
+        FILE * df = fopen(debugFile,"a");
+        fprintf(df,"\n\nstart searching...\n ");
+        for(int i = 0 ; i < trail.size();i++){
+                fprintf(df,"%c%d : %d ,", assigns[var(trail[i])] == l_True ? '+' : '-',var(trail[i]),level(var(trail[i])));
+        }
+        fprintf(df,"\ndecisionLevel: %d\n",decisionLevel());
+        fclose(df);
         propagate(confls);
+        df = fopen(debugFile,"a");
+        fprintf(df,"after propa...\n");
+        for(int i = 0; i < confls.size(); i++){
+            for(int j = 0; j < ca[confls[i]].size(); j++){
+                fprintf(df,"%d(lit) : %d(var)  ",ca[confls[i]][j].x,var(ca[confls[i]][j]));
+            }
+            fprintf(df,"\n");
+        }
+        for(int i = 0; i < trail.size(); i++){
+            fprintf(df,"%c%d : %d ,", assigns[var(trail[i])] == l_True ? '+' : '-',var(trail[i]),level(var(trail[i])));
+        }
+        fprintf(df,"\ndecisionLevel: %d\n",decisionLevel());
+        fclose(df);
         //if(test != CRef_Undef){
 
          if (confls.size() !=0 and confls[0] != CRef_Undef){
@@ -1336,11 +1454,13 @@ lbool Solver::newSearch(int nof_conflicts)
             learnt_clauses.clear();
 
 
-             if(confls.size() == 1 and !qhead_reset){
+             if(confls.size() <= 1 && !qhead_reset){
                  learnt_clauses.push();
                  analyze(confls[0],learnt_clauses[0],backtrack_level);
             }else{
-                //analyze(confls[0],learnt_clauses[0],backtrack_level);
+                 //learnt_clauses.push();
+                 //analyze(confls[0],learnt_clauses[0],backtrack_level);
+
                 analyze(confls,learnt_clauses,backtrack_level);
                 //qhead_reset = false;
             };
@@ -1348,7 +1468,10 @@ lbool Solver::newSearch(int nof_conflicts)
             //analyze(test,learnt_clauses[0],backtrack_level);
             qhead_reset = false;
             //analyze(confl, learnt_clause, backtrack_level);
+            if(backtrack_level == 0)
+                printf("let's debug!!");
             cancelUntil(backtrack_level);
+
 
             //cancelUntil(backtrack_level);
             //bool
@@ -1415,9 +1538,12 @@ lbool Solver::newSearch(int nof_conflicts)
                 return l_Undef; }
 
             // Simplify the set of problem clauses:
-           if (decisionLevel() == 0 && !simplify())
+           if (decisionLevel() == 0 && !simplify()){
+               printf("\n i am wrong because TOT!!\n");
+               return l_False;
+           }
            //if(decisionLevel() == 0)
-                return l_False;
+
 
             if (learnts.size()-nAssigns() >= max_learnts)
                 // Reduce the set of learnt clauses:
@@ -1567,7 +1693,13 @@ lbool Solver::newSolve_()
 {
     // get partition files
     //int no_sat_files = 0;
-    bool flag = false;
+    FILE * df = fopen(debugFile,"w");
+    time_t timep;
+    time (&timep);
+    char tmp[64];
+    strftime(tmp, sizeof(tmp), "%Y-%m-%d %H:%M:%S",localtime(&timep) );
+    fprintf(df,"lets begin! %s",tmp);
+    fclose(df);
     vec <char *> files;
     DIR* dirp = opendir(dirName);
     struct dirent *dp;
@@ -1610,7 +1742,7 @@ lbool Solver::newSolve_()
     // Search:
     int curr_restarts = 0;
     int next = 0;
-    while (sat_files != files.size()*2){
+    while (sat_files != files.size()){
 
         next = next % files.size();
         //debug
@@ -1624,7 +1756,7 @@ lbool Solver::newSolve_()
         }
 
         gzFile in  = gzopen(files[next],"rb");
-        qhead_reset = true && flag;
+        qhead_reset = true;
         if(status == l_True && qhead_reset){
             status = l_Undef;
         }
@@ -1718,6 +1850,9 @@ lbool Solver::newSolve_()
         //rebuildOrderHeap();
         while (status == l_Undef){
             double rest_base = luby_restart ? luby(restart_inc, curr_restarts) : pow(restart_inc, curr_restarts);
+            FILE * df = fopen(debugFile,"a");
+            fprintf(df,"\nnow file is %s",files[next]);
+            fclose(df);
             status = newSearch(rest_base * restart_first);
             if (!withinBudget()) break;
             curr_restarts++;
@@ -1734,18 +1869,38 @@ lbool Solver::newSolve_()
             for(int i = 0; i < assigns.size(); i++){
                 printf("%d:%d  ",i+1,assigns[i]);
             }
-            if(!flag) {flag = true;}
             sat_files++;
+            FILE * df = fopen(debugFile,"a");
+            //for(int i = 0; i < sat_files; i++){
+            //    int j = (next - i) % files.size();
+            //    fprintf(df,"\n end search sat file: %s",files[j]);
+            //}
+            fprintf(df,"\n end assign is:");
+            for(int i = 0; i < trail.size(); i++){
+                fprintf(df,"%d : %d ,", assigns[var(trail[i])] == l_True ? var(trail[i]) : - var(trail[i]), level(var(trail[i])));
+            }
             next++;
+            fclose(df);
             //for (int i = 0; i < nVars(); i++) model[i] = value(i);
             continue;
         }else if (status == l_False && conflict.size() == 0){
             ok = false;
-            printf("----------why!!---------");
+            printf("----------why!!---------\n");
             for(int i = 0; i < clauses.size(); i++){
-                for(int j = 0; j < ca[clauses[i]].size(); j++)
-                    printf(assigns[var(ca[clauses[i]][j])] == l_True ? "-%d ":"%d ",var(ca[clauses[i]][j]));
-                    printf("0\n");
+                for(int j = 0; j < ca[clauses[i]].size(); j++){
+                    int val = var(ca[clauses[i]][j]);
+                    val++;
+                    printf(assigns[var(ca[clauses[i]][j])] == l_True ? "-%d ":"%d ",val);
+                }
+                printf("0\n");
+            }
+            for(int i = 0; i < learnts.size(); i++){
+                for(int j = 0; j < ca[clauses[i]].size(); j++){
+                    int val = var(ca[clauses[i]][j]);
+                    val++;
+                    printf(assigns[var(ca[clauses[i]][j])] == l_True ? "-%d ":"%d ",val);
+                }
+                printf("0\n");
             }
         }
 
